@@ -860,40 +860,43 @@ pprCallishMachOp_for_C mop
         MO_SubIntC    {} -> unsupported
         MO_U_Mul2     {} -> unsupported
         MO_Touch         -> unsupported
+        -- we could support prefetch via "__builtin_prefetch"
+        -- Not adding it for now
         (MO_Prefetch_Data _ ) -> unsupported
-        --- we could support prefetch via "__builtin_prefetch"
-        --- Not adding it for now
-        MO_I64_ToI   -> unsupported
-        MO_I64_FromI -> unsupported
-        MO_W64_ToW   -> unsupported
-        MO_W64_FromW -> unsupported
-        MO_x64_Neg   -> unsupported
-        MO_x64_Add   -> unsupported
-        MO_x64_Sub   -> unsupported
-        MO_x64_Mul   -> unsupported
-        MO_I64_Quot  -> unsupported
-        MO_I64_Rem   -> unsupported
-        MO_W64_Quot  -> unsupported
-        MO_W64_Rem   -> unsupported
-        MO_x64_And   -> unsupported
-        MO_x64_Or    -> unsupported
-        MO_x64_Xor   -> unsupported
-        MO_x64_Not   -> unsupported
-        MO_x64_Shl   -> unsupported
-        MO_I64_Shr   -> unsupported
-        MO_W64_Shr   -> unsupported
-        MO_x64_Eq    -> unsupported
-        MO_x64_Ne    -> unsupported
-        MO_I64_Ge    -> unsupported
-        MO_I64_Gt    -> unsupported
-        MO_I64_Le    -> unsupported
-        MO_I64_Lt    -> unsupported
-        MO_W64_Ge    -> unsupported
-        MO_W64_Gt    -> unsupported
-        MO_W64_Le    -> unsupported
-        MO_W64_Lt    -> unsupported
+
+        MO_I64_ToI   -> dontReach64
+        MO_I64_FromI -> dontReach64
+        MO_W64_ToW   -> dontReach64
+        MO_W64_FromW -> dontReach64
+        MO_x64_Neg   -> dontReach64
+        MO_x64_Add   -> dontReach64
+        MO_x64_Sub   -> dontReach64
+        MO_x64_Mul   -> dontReach64
+        MO_I64_Quot  -> dontReach64
+        MO_I64_Rem   -> dontReach64
+        MO_W64_Quot  -> dontReach64
+        MO_W64_Rem   -> dontReach64
+        MO_x64_And   -> dontReach64
+        MO_x64_Or    -> dontReach64
+        MO_x64_Xor   -> dontReach64
+        MO_x64_Not   -> dontReach64
+        MO_x64_Shl   -> dontReach64
+        MO_I64_Shr   -> dontReach64
+        MO_W64_Shr   -> dontReach64
+        MO_x64_Eq    -> dontReach64
+        MO_x64_Ne    -> dontReach64
+        MO_I64_Ge    -> dontReach64
+        MO_I64_Gt    -> dontReach64
+        MO_I64_Le    -> dontReach64
+        MO_I64_Lt    -> dontReach64
+        MO_W64_Ge    -> dontReach64
+        MO_W64_Gt    -> dontReach64
+        MO_W64_Le    -> dontReach64
+        MO_W64_Lt    -> dontReach64
     where unsupported = panic ("pprCallishMachOp_for_C: " ++ show mop
                             ++ " not supported!")
+          dontReach64 = panic ("pprCallishMachOp_for_C: " ++ show mop
+                            ++ " should be not be encountered because the regular primop for this 64-bit operation is used instead.")
 
 -- ---------------------------------------------------------------------
 -- Useful #defines
