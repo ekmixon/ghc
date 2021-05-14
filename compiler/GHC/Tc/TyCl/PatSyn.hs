@@ -815,6 +815,7 @@ tcPatSynMatcher (L loc name) lpat prag_fn
        ; matcher_prag_id <- addInlinePrags matcher_id prags
        ; let bind = FunBind{ fun_id = L loc matcher_prag_id
                            , fun_matches = mg
+                           , fun_tv_binds = []
                            , fun_ext = idHsWrapper
                            , fun_tick = [] }
              matcher_bind = unitBag (noLocA bind)
@@ -907,10 +908,11 @@ tcPatSynBuilderBind prag_fn (PSB { psb_id = ps_lname@(L loc ps_name)
        ; let match_group' | need_dummy_arg = add_dummy_arg match_group
                           | otherwise      = match_group
 
-             bind = FunBind { fun_id      = L loc (idName builder_id)
-                            , fun_matches = match_group'
-                            , fun_ext     = emptyNameSet
-                            , fun_tick    = [] }
+             bind = FunBind { fun_id       = L loc (idName builder_id)
+                            , fun_matches  = match_group'
+                            , fun_tv_binds = []
+                            , fun_ext      = emptyNameSet
+                            , fun_tick     = [] }
 
              sig = completeSigFromId (PatSynCtxt ps_name) builder_id
 

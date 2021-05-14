@@ -175,6 +175,8 @@ instance Diagnostic PsMessage where
       -> mkSimpleDecorated $ text "Illegal lambda-case (use LambdaCase)"
     PsErrEmptyLambda
        -> mkSimpleDecorated $ text "A lambda requires at least one parameter"
+    PsErrorIllegalTypeArguments
+      -> mkSimpleDecorated $ text "Type variable arguments after ordinary patterns are not allowed yet"
     PsErrLinearFunction
       -> mkSimpleDecorated $ text "Enable LinearTypes to allow linear functions"
     PsErrOverloadedRecordUpdateNotEnabled
@@ -640,6 +642,7 @@ instance Diagnostic PsMessage where
     PsErrInvalidPackageName{}                     -> ErrorWithoutFlag
     PsErrParseRightOpSectionInPat{}               -> ErrorWithoutFlag
     PsErrIllegalGadtRecordMultiplicity{}          -> ErrorWithoutFlag
+    PsErrorIllegalTypeArguments                   -> ErrorWithoutFlag
 
   diagnosticHints  = \case
     PsUnknownMessage m                            -> diagnosticHints m
@@ -768,6 +771,7 @@ instance Diagnostic PsMessage where
     PsErrUnexpectedTypeInDecl{}                   -> noHints
     PsErrInvalidPackageName{}                     -> noHints
     PsErrIllegalGadtRecordMultiplicity{}          -> noHints
+    PsErrorIllegalTypeArguments                   -> noHints
 
 psHeaderMessageDiagnostic :: PsHeaderMessage -> DecoratedSDoc
 psHeaderMessageDiagnostic = \case

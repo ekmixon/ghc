@@ -182,7 +182,7 @@ cvtDec (TH.ValD pat body ds)
   = do  { s' <- vNameN s
         ; cl' <- cvtClause (mkPrefixFunRhs s') (Clause [] body ds)
         ; th_origin <- getOrigin
-        ; returnJustLA $ Hs.ValD noExtField $ mkFunBind th_origin s' [cl'] }
+        ; returnJustLA $ Hs.ValD noExtField $ mkFunBind th_origin s' [] [cl'] }
 
   | otherwise
   = do  { pat' <- cvtPat pat
@@ -203,7 +203,7 @@ cvtDec (TH.FunD nm cls)
   = do  { nm' <- vNameN nm
         ; cls' <- mapM (cvtClause (mkPrefixFunRhs nm')) cls
         ; th_origin <- getOrigin
-        ; returnJustLA $ Hs.ValD noExtField $ mkFunBind th_origin nm' cls' }
+        ; returnJustLA $ Hs.ValD noExtField $ mkFunBind th_origin nm' [] cls' }
 
 cvtDec (TH.SigD nm typ)
   = do  { nm' <- vNameN nm

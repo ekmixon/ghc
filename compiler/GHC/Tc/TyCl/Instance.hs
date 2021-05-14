@@ -2094,7 +2094,7 @@ mkDefMethBind dfun_id clas sel_id dm_name
               visible_inst_tys = [ ty | (tcb, ty) <- tyConBinders (classTyCon clas) `zip` inst_tys
                                       , tyConBinderArgFlag tcb /= Inferred ]
               rhs  = foldl' mk_vta (nlHsVar dm_name) visible_inst_tys
-              bind = noLocA $ mkTopFunBind Generated fn $
+              bind = noLocA $ mkTopFunBind Generated fn [] $
                              [mkSimpleMatch (mkPrefixFunRhs fn) [] rhs]
 
         ; liftIO (putDumpFileMaybe logger Opt_D_dump_deriv "Filling in method body"

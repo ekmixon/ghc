@@ -558,7 +558,7 @@ getMonoBind (L loc1 (FunBind { fun_id = fun_id1@(L _ f1)
         = let doc_decls' = doc_decl : doc_decls
           in go mtchs (combineSrcSpansA loc loc2) binds doc_decls'
     go mtchs loc binds doc_decls
-        = ( L loc (makeFunBind fun_id1 (mkLocatedList $ reverse mtchs))
+        = ( L loc (makeFunBind fun_id1 [] (mkLocatedList $ reverse mtchs))
           , (reverse doc_decls) ++ binds)
         -- Reverse the final matches, to get it back in the right order
         -- Do the same thing with the trailing doc comments
@@ -1113,8 +1113,6 @@ checkPat loc (L l e@(PatBuilderVar (L ln c))) tyargs args
       , pat_con = L ln c
       , pat_args = PrefixCon tyargs args
       }
-  | not (null tyargs) =
-      patFail (locA l) . PsErrInPat e $ PEIP_TypeArgs tyargs
   | (not (null args) && patIsRec c) = do
       ctx <- askParseContext
       patFail (locA l) . PsErrInPat e $ PEIP_RecPattern args YesPatIsRecursive ctx
@@ -1213,9 +1211,9 @@ checkValDef loc lhs (Just (sigAnn, sig)) grhss
 checkValDef loc lhs Nothing g
   = do  { mb_fun <- isFunLhs lhs
         ; case mb_fun of
-            Just (fun, is_infix, pats, ann) ->
+            Just (fun, is_infix, tybndrs, pats, ann) ->
               checkFunBind NoSrcStrict loc ann
-                           fun is_infix pats g
+                           fun is_infix tybndrs pats g
             Nothing -> do
               lhs' <- checkPattern lhs
               checkPatBind loc [] lhs' g }
@@ -1225,14 +1223,15 @@ checkFunBind :: SrcStrictness
              -> [AddEpAnn]
              -> LocatedN RdrName
              -> LexicalFixity
+             -> [LHsTyVarBndr Specificity GhcPs]
              -> [LocatedA (PatBuilder GhcPs)]
              -> Located (GRHSs GhcPs (LHsExpr GhcPs))
              -> P (HsBind GhcPs)
-checkFunBind strictness locF ann fun is_infix pats (L _ grhss)
+checkFunBind strictness locF ann fun is_infix tyargs pats (L _ grhss)
   = do  ps <- runPV_details extraDetails (mapM checkLPat pats)
         let match_span = noAnnSrcSpan $ locF
         cs <- getCommentsFor locF
-        return (makeFunBind fun (L (noAnnSrcSpan $ locA match_span)
+        return (makeFunBind fun tyargs (L (noAnnSrcSpan $ locA match_span)
                  [L match_span (Match { m_ext = EpAnn (spanAsAnchor locF) ann cs
                                       , m_ctxt = FunRhs
                                           { mc_fun    = fun
@@ -1247,12 +1246,14 @@ checkFunBind strictness locF ann fun is_infix pats (L _ grhss)
       | Infix <- is_infix = ParseContext (Just $ unLoc fun) NoIncompleteDoBlock
       | otherwise         = noParseContext
 
-makeFunBind :: LocatedN RdrName -> LocatedL [LMatch GhcPs (LHsExpr GhcPs)]
+makeFunBind :: LocatedN RdrName -> [LHsTyVarBndr Specificity GhcPs]
+            -> LocatedL [LMatch GhcPs (LHsExpr GhcPs)]
             -> HsBind GhcPs
 -- Like GHC.Hs.Utils.mkFunBind, but we need to be able to set the fixity too
-makeFunBind fn ms
+makeFunBind fn tyargs ms
   = FunBind { fun_ext = noExtField,
               fun_id = fn,
+              fun_tv_binds = tyargs,
               fun_matches = mkMatchGroup FromSource ms,
               fun_tick = [] }
 
@@ -1264,7 +1265,7 @@ checkPatBind :: SrcSpan
              -> P (HsBind GhcPs)
 checkPatBind loc annsIn (L _ (BangPat (EpAnn _ ans cs) (L _ (VarPat _ v))))
                         (L _match_span grhss)
-      = return (makeFunBind v (L (noAnnSrcSpan loc)
+      = return (makeFunBind v [] (L (noAnnSrcSpan loc)
                 [L (noAnnSrcSpan loc) (m (EpAnn (spanAsAnchor loc) (ans++annsIn) cs) v)]))
   where
     m a v = Match { m_ext = a
@@ -1272,7 +1273,7 @@ checkPatBind loc annsIn (L _ (BangPat (EpAnn _ ans cs) (L _ (VarPat _ v))))
                                     , mc_fixity = Prefix
                                     , mc_strictness = SrcStrict }
                   , m_pats = []
-                 , m_grhss = grhss }
+                  , m_grhss = grhss }
 
 checkPatBind loc annsIn lhs (L _ grhss) = do
   cs <- getCommentsFor loc
@@ -1303,30 +1304,45 @@ checkDoAndIfThenElse err guardExpr semiThen thenExpr semiElse elseExpr
   | otherwise = return ()
 
 isFunLhs :: LocatedA (PatBuilder GhcPs)
-      -> P (Maybe (LocatedN RdrName, LexicalFixity,
+      -> P (Maybe (LocatedN RdrName, LexicalFixity, [LHsTyVarBndr Specificity GhcPs],
                    [LocatedA (PatBuilder GhcPs)],[AddEpAnn]))
 -- A variable binding is parsed as a FunBind.
 -- Just (fun, is_infix, arg_pats) if e is a function LHS
-isFunLhs e = go e [] []
+isFunLhs e = go e [] [] []
  where
-   go (L _ (PatBuilderVar (L loc f))) es ann
-       | not (isRdrDataCon f)        = return (Just (L loc f, Prefix, es, ann))
-   go (L _ (PatBuilderApp f e)) es       ann = go f (e:es) ann
-   go (L l (PatBuilderPar _ e _)) es@(_:_) ann
-                                      = go e es (ann ++ mkParensEpAnn (locA l))
-   go (L loc (PatBuilderOpApp l (L loc' op) r (EpAnn loca anns cs))) es ann
+   go (L _ (PatBuilderVar (L loc f))) [] es ann
+       | not (isRdrDataCon f)        = return (Just (L loc f, Prefix, [], es, ann))
+   go (L _ (PatBuilderApp f e)) [] es       ann = go f [] (e:es) ann
+   go (L l (PatBuilderPar _ e _)) [] es@(_:_) ann
+                                      = go e [] es (ann ++ mkParensEpAnn (locA l))
+   go (L loc (PatBuilderOpApp l (L loc' op) r (EpAnn loca anns cs))) [] es ann
         | not (isRdrDataCon op)         -- We have found the function!
-        = return (Just (L loc' op, Infix, (l:r:es), (anns ++ ann)))
+        = return (Just (L loc' op, Infix, [], (l:r:es), (anns ++ ann)))
         | otherwise                     -- Infix data con; keep going
-        = do { mb_l <- go l es ann
+        = do { mb_l <- go l [] es ann
              ; case mb_l of
-                 Just (op', Infix, j : k : es', ann')
-                   -> return (Just (op', Infix, j : op_app : es', ann'))
+                 Just (op', Infix, [], j : k : es', ann')
+                   -> return (Just (op', Infix, [], j : op_app : es', ann'))
                    where
                      op_app = L loc (PatBuilderOpApp k
                                (L loc' op) r (EpAnn loca anns cs))
                  _ -> return Nothing }
-   go _ _ _ = return Nothing
+   go (L _ (PatBuilderAppType e (HsPS {hsps_body = L l (HsTyVar _ NotPromoted c)}))) tyvars es ann = do
+     case isAppType e of
+       True -> do
+         mb_e <- go e tyvars es ann
+         case mb_e of
+           Just (e', Prefix, tyargs, es', ann') ->
+             return $ Just (e', Prefix, tyvar : tyargs, es', ann')
+           _ -> return Nothing
+       False -> addFatalError $ mkPlainErrorMsgEnvelope (locA l) PsErrorIllegalTypeArguments
+     where
+       isAppType (L _ (PatBuilderAppType _ _)) = True
+       isAppType (L _ (PatBuilderVar _))         = True
+       isAppType _                               = False
+
+       tyvar = L l $ UserTyVar noAnn SpecifiedSpec c
+   go _ _ _ _ = return Nothing
 
 mkBangTy :: EpAnn [AddEpAnn] -> SrcStrictness -> LHsType GhcPs -> HsType GhcPs
 mkBangTy anns strictness =

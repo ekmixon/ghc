@@ -2782,16 +2782,16 @@ aexp    :: { ECP }
                                    unECP $2 >>= \ $2 ->
                                    mkHsNegAppPV (comb2A $1 $>) $2 [mj AnnMinus $1] }
 
-        | '\\' apats '->' exp
+        | '\\' typats apats '->' exp
                    {  ECP $
-                      unECP $4 >>= \ $4 ->
+                      unECP $5 >>= \ $5 ->
                       mkHsLamPV (comb2 $1 (reLoc $>)) (\cs -> mkMatchGroup FromSource
                             (reLocA $ sLLlA $1 $>
                             [reLocA $ sLLlA $1 $>
                                          $ Match { m_ext = EpAnn (glR $1) [mj AnnLam $1] cs
                                                  , m_ctxt = LambdaExpr
-                                                 , m_pats = $2
-                                                 , m_grhss = unguardedGRHSs (comb2 $3 (reLoc $4)) $4 (EpAnn (glR $3) (GrhsAnn Nothing (mu AnnRarrow $3)) emptyComments) }])) }
+                                                 , m_pats = $3
+                                                 , m_grhss = unguardedGRHSs (comb2 $4 (reLoc $5)) $5 (EpAnn (glR $4) (GrhsAnn Nothing (mu AnnRarrow $4)) emptyComments) }])) }
         | 'let' binds 'in' exp          {  ECP $
                                            unECP $4 >>= \ $4 ->
                                            mkHsLetPV (comb2A $1 $>) (unLoc $2) $4
@@ -3289,6 +3289,13 @@ apat    : aexp                  {% (checkPattern <=< runPV) (unECP $1) }
 apats  :: { [LPat GhcPs] }
         : apat apats            { $1 : $2 }
         | {- empty -}           { [] }
+
+typat  :: { LHsTyVarBndr Specificity GhcPs }
+        : PREFIX_AT tv_bndr     { $2 }
+
+typats  :: { [LHsTyVarBndr Specificity GhcPs] }
+         : typat typats     { $1 : $2 }
+         | {- empty -}      { [] }
 
 -----------------------------------------------------------------------------
 -- Statement sequences

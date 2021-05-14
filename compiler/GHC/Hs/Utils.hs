@@ -832,23 +832,27 @@ l
 ************************************************************************
 -}
 
-mkFunBind :: Origin -> LocatedN RdrName -> [LMatch GhcPs (LHsExpr GhcPs)]
+mkFunBind :: Origin -> LocatedN RdrName -> [LHsTyVarBndr Specificity GhcPs]
+          -> [LMatch GhcPs (LHsExpr GhcPs)]
           -> HsBind GhcPs
 -- ^ Not infix, with place holders for coercion and free vars
-mkFunBind origin fn ms
+mkFunBind origin fn tyvars ms
   = FunBind { fun_id = fn
+            , fun_tv_binds = tyvars
             , fun_matches = mkMatchGroup origin (noLocA ms)
             , fun_ext = noExtField
             , fun_tick = [] }
 
-mkTopFunBind :: Origin -> LocatedN Name -> [LMatch GhcRn (LHsExpr GhcRn)]
+mkTopFunBind :: Origin -> LocatedN Name -> [LHsTyVarBndr Specificity GhcPs]
+             -> [LMatch GhcRn (LHsExpr GhcRn)]
              -> HsBind GhcRn
 -- ^ In Name-land, with empty bind_fvs
-mkTopFunBind origin fn ms = FunBind { fun_id = fn
-                                    , fun_matches = mkMatchGroup origin (noLocA ms)
-                                    , fun_ext  = emptyNameSet -- NB: closed
-                                                              --     binding
-                                    , fun_tick = [] }
+mkTopFunBind origin fn tyvars ms = FunBind { fun_id = fn
+                                           , fun_tv_binds = tyvars
+                                           , fun_matches = mkMatchGroup origin (noLocA ms)
+                                           , fun_ext  = emptyNameSet -- NB: closed
+                                                                     --     binding
+                                           , fun_tick = [] }
 
 mkHsVarBind :: SrcSpan -> RdrName -> LHsExpr GhcPs -> LHsBind GhcPs
 mkHsVarBind loc var rhs = mkSimpleGeneratedFunBind loc var [] rhs
@@ -901,7 +905,7 @@ spanHsLocaLBinds (HsIPBinds _ (IPBinds _ bs))
 mkSimpleGeneratedFunBind :: SrcSpan -> RdrName -> [LPat GhcPs]
                 -> LHsExpr GhcPs -> LHsBind GhcPs
 mkSimpleGeneratedFunBind loc fun pats expr
-  = L (noAnnSrcSpan loc) $ mkFunBind Generated (L (noAnnSrcSpan loc) fun)
+  = L (noAnnSrcSpan loc) $ mkFunBind Generated (L (noAnnSrcSpan loc) fun) []
               [mkMatch (mkPrefixFunRhs (L (noAnnSrcSpan loc) fun)) pats expr
                        emptyLocalBinds]
 

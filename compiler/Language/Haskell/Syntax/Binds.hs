@@ -34,6 +34,7 @@ import {-# SOURCE #-} Language.Haskell.Syntax.Pat
 import Language.Haskell.Syntax.Extension
 import Language.Haskell.Syntax.Type
 import GHC.Types.Name.Reader(RdrName)
+import GHC.Hs.Extension (GhcPs)
 import GHC.Tc.Types.Evidence
 import GHC.Core.Type
 import GHC.Types.Basic
@@ -223,6 +224,8 @@ data HsBindLR idL idR
           -- Notice that the coercion captures the free a'.
 
         fun_id :: LIdP idL, -- Note [fun_id in Match] in GHC.Hs.Expr
+
+        fun_tv_binds :: [LHsTyVarBndr Specificity GhcPs],
 
         fun_matches :: MatchGroup idR (LHsExpr idR),  -- ^ The payload
 
