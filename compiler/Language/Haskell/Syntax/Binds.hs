@@ -34,6 +34,7 @@ import {-# SOURCE #-} Language.Haskell.Syntax.Pat
 import Language.Haskell.Syntax.Extension
 import Language.Haskell.Syntax.Type
 import GHC.Types.Name.Reader(RdrName)
+import GHC.Hs.Extension (GhcPs)
 import GHC.Tc.Types.Evidence
 import GHC.Core.Type
 import GHC.Types.Basic

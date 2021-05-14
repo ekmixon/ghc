@@ -96,10 +96,10 @@ tcLetPat sig_fn no_gen pat pat_ty thing_inside
 
 -----------------
 tcPats :: HsMatchContext GhcRn
-       -> [LPat GhcRn]            -- Patterns,
+       -> [LamPat GhcRn]            -- Patterns,
        -> [Scaled ExpSigmaType]         --   and their types
        -> TcM a                  --   and the checker for the body
-       -> TcM ([LPat GhcTc], a)
+       -> TcM ([LamPat GhcTc], a)
 
 -- This is the externally-callable wrapper function
 -- Typecheck the patterns, extend the environment to bind the variables,
@@ -113,7 +113,7 @@ tcPats :: HsMatchContext GhcRn
 --   4. Check that no existentials escape
 
 tcPats ctxt pats pat_tys thing_inside
-  = tc_lpats pat_tys penv pats thing_inside
+  = tc_lampats pat_tys penv pats thing_inside
   where
     penv = PE { pe_lazy = False, pe_ctxt = LamPat ctxt, pe_orig = PatOrigin }
 
@@ -336,11 +336,29 @@ tc_lpat pat_ty penv (L span pat) thing_inside
                                           thing_inside
         ; return (L span pat', res) }
 
+tc_lampat :: Scaled ExpSigmaType
+          -> Checker (LamPat GhcRn) (LamPat GhcTc)
+tc_lampat pat_ty penv (LamVisPat pat) thing_inside
+  = do { (pat', res) <- tc_lpat pat_ty penv pat thing_inside
+       ; return (LamVisPat pat', res) }
+tc_lampat _ _ (LamInvisPat (L l name)) thing_inside
+  = do { res <- thing_inside
+       ; kind <- newMetaKindVar
+       ; return (LamInvisPat (L l (mkTyVar name kind)), res) }
+
 tc_lpats :: [Scaled ExpSigmaType]
          -> Checker [LPat GhcRn] [LPat GhcTc]
 tc_lpats tys penv pats
   = assertPpr (equalLength pats tys) (ppr pats $$ ppr tys) $
     tcMultiple (\ penv' (p,t) -> tc_lpat t penv' p)
+               penv
+               (zipEqual "tc_lpats" pats tys)
+
+tc_lampats :: [Scaled ExpSigmaType]
+           -> Checker [LamPat GhcRn] [LamPat GhcTc]
+tc_lampats tys penv pats
+  = assertPpr (equalLength pats tys) (ppr pats $$ ppr tys) $
+    tcMultiple (\ penv' (p,t) -> tc_lampat t penv' p)
                penv
                (zipEqual "tc_lpats" pats tys)
 

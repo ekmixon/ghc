@@ -155,7 +155,7 @@ matchActualFunTySigma herald mb_thing err_info fun_ty
     ------------
     mk_ctxt :: TcType -> TidyEnv -> TcM (TidyEnv, SDoc)
     mk_ctxt res_ty env = mkFunTysMsg env herald (reverse arg_tys_so_far)
-                                     res_ty n_val_args_in_call
+                                     res_ty 123 n_val_args_in_call
     (n_val_args_in_call, arg_tys_so_far) = err_info
 
 {- Note [matchActualFunTy error handling]
@@ -367,23 +367,27 @@ matchExpectedFunTys herald ctx arity orig_ty thing_inside
     ------------
     mk_ctxt :: [Scaled ExpSigmaType] -> TcType -> TidyEnv -> TcM (TidyEnv, SDoc)
     mk_ctxt arg_tys res_ty env
-      = mkFunTysMsg env herald arg_tys' res_ty arity
+      = mkFunTysMsg env herald arg_tys' res_ty 123 arity
       where
         arg_tys' = map (\(Scaled u v) -> Scaled u (checkingExpType "matchExpectedFunTys" v)) $
                    reverse arg_tys
             -- this is safe b/c we're called from "go"
 
-mkFunTysMsg :: TidyEnv -> SDoc -> [Scaled TcType] -> TcType -> Arity
+mkFunTysMsg :: TidyEnv -> SDoc -> [Scaled TcType] -> TcType -> Arity -> Arity
             -> TcM (TidyEnv, SDoc)
-mkFunTysMsg env herald arg_tys res_ty n_val_args_in_call
+mkFunTysMsg env herald arg_tys res_ty n_type_args_in_call n_val_args_in_call
   = do { (env', fun_rho) <- zonkTidyTcType env $
                             mkVisFunTys arg_tys res_ty
 
        ; let (all_arg_tys, _) = splitFunTys fun_rho
              n_fun_args = length all_arg_tys
+       ; let (all_ty_args, _) = splitForAllTyVars fun_rho
+             n_ty_args = length all_ty_args
 
              msg | n_val_args_in_call <= n_fun_args  -- Enough args, in the end
-                 = text "In the result of a function call"
+                 = case n_type_args_in_call <= n_ty_args of
+                     True -> text "In the result of a function call"
+                     False -> hang (full_herald <> comma) 2 (text "sorry mate")
                  | otherwise
                  = hang (full_herald <> comma)
                       2 (sep [ text "but its type" <+> quotes (pprType fun_rho)

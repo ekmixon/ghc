@@ -32,6 +32,7 @@ import GHC.Tc.Types.Origin
 import GHC.Tc.Types.Evidence
 import GHC.Core.Multiplicity
 import GHC.Types.Id( mkLocalId )
+import GHC.Types.Var( tyVarKind )
 import GHC.Tc.Utils.Instantiate
 import GHC.Builtin.Types
 import GHC.Types.Var.Set
@@ -266,7 +267,7 @@ tc_cmd env
         ; let match' = L mtch_loc (Match { m_ext = noAnn
                                          , m_ctxt = LambdaExpr, m_pats = pats'
                                          , m_grhss = grhss' })
-              arg_tys = map (unrestricted . hsLPatType) pats'
+              arg_tys = map toUnrestrictedType pats'
               cmd' = HsCmdLam x (MG { mg_alts = L l [match']
                                     , mg_ext = MatchGroupTc arg_tys res_ty
                                     , mg_origin = origin })
@@ -275,6 +276,9 @@ tc_cmd env
     n_pats     = length pats
     match_ctxt = (LambdaExpr :: HsMatchContext GhcRn)    -- Maybe KappaExpr?
     pg_ctxt    = PatGuard match_ctxt
+
+    toUnrestrictedType (LamVisPat pat)  = unrestricted . hsLPatType $ pat
+    toUnrestrictedType (LamInvisPat (L _ var)) = unrestricted (tyVarKind var)
 
     tc_grhss (GRHSs x grhss binds) stk_ty res_ty
         = do { (binds', grhss') <- tcLocalBinds binds $

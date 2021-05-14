@@ -19,7 +19,7 @@
 
 -- See Note [Language.Haskell.Syntax.* Hierarchy] for why not GHC.Hs.*
 module Language.Haskell.Syntax.Pat (
-        Pat(..), LPat,
+        Pat(..), LPat, LamPat(..), toLPats,
         ConLikeP,
 
         HsConPatDetails, hsConPatArgs,
@@ -219,6 +219,16 @@ data Pat p
 
 type family ConLikeP x
 
+data LamPat pass
+  = LamVisPat (LPat pass)
+  | LamInvisPat (LIdP pass)
+
+toLPats :: [LamPat pass] -> [LPat pass]
+toLPats [] = []
+toLPats (x:xs) =
+  case x of
+    LamVisPat pat -> pat : toLPats xs
+    _             -> toLPats xs
 
 -- ---------------------------------------------------------------------
 
