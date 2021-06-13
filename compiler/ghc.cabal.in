@@ -22,6 +22,7 @@ Description:
     for more information.
 Category: Development
 Build-Type: Custom
+extra-source-files: GHC/Builtin/primops.txt.pp GHC/Builtin/bytearray-ops.txt.pp Unique.h
 
 custom-setup
     setup-depends: base >= 3 && < 5, Cabal >= 1.6 && <3.6, directory, process, filepath
@@ -741,6 +742,9 @@ Library
         Language.Haskell.Syntax.Lit
         Language.Haskell.Syntax.Pat
         Language.Haskell.Syntax.Type
+
+    autogen-modules: GHC.Platform.Constants
+                     GHC.Settings.Config
 
     reexported-modules:
           GHC.Platform.ArchOS
