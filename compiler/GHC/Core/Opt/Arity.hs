@@ -1927,7 +1927,8 @@ This turned up in #7542.
 tryEtaReduce :: [Var] -> CoreExpr -> Maybe CoreExpr
 -- Return an expression equal to (\bndrs. body)
 tryEtaReduce bndrs body
-  = go (reverse bndrs) body refl_co
+  = let res = go (reverse bndrs) body refl_co
+    in pprTrace "tryEtaReduce" (ppr bndrs $$ ppr body $$ ppr res) res
   where
     refl_co = mkRepReflCo (exprType body)
     incoming_arity = count isId bndrs
@@ -1941,13 +1942,6 @@ tryEtaReduce bndrs body
     --
     -- Invariant: (go bs body co) returns an expression
     --            equivalent to (\(reverse bs). body |> co)
-    go [] fun co
-      | all ok_lam bndrs || ok_fun incoming_arity fun
-      , let etad_expr = mkCast fun co
-            used_vars = exprFreeVars etad_expr
-      , not (any (`elemVarSet` used_vars) bndrs)
-      = Just etad_expr
-
     -- See Note [Eta reduction with casted function]
     go bs (Cast e co1) co2
       = go bs e (co1 `mkTransCo` co2)
@@ -1961,6 +1955,15 @@ tryEtaReduce bndrs body
       | Just (co', ticks) <- ok_arg b arg co (exprType fun)
       = fmap (flip (foldr mkTick) ticks) $ go bs fun co'
             -- Float arg ticks: \x -> e (Tick t x) ==> Tick t e
+
+    go remaining_bndrs fun co
+      | all isTyVar remaining_bndrs
+      , remaining_bndrs `ltLength` bndrs
+      , all ok_lam bndrs || ok_fun incoming_arity fun
+      , let etad_expr = mkLams (reverse remaining_bndrs) (mkCast fun co)
+            used_vars = exprFreeVars etad_expr
+      , not (any (`elemVarSet` used_vars) bndrs)
+      = Just etad_expr
 
     go _ _ _  = Nothing         -- Failure!
 
