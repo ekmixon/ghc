@@ -360,6 +360,7 @@ Library
         GHC.Core.UsageEnv
         GHC.Core.Utils
         GHC.Data.Bag
+        GHC.Data.DependentMap
         GHC.Data.Bitmap
         GHC.Data.Bool
         GHC.Data.BooleanFormula
@@ -739,6 +740,7 @@ Library
         GHC.Utils.Logger
         GHC.Utils.Misc
         GHC.Utils.Monad
+        GHC.Utils.Monad.Concurrently
         GHC.Utils.Monad.State.Strict
         GHC.Utils.Monad.State.Lazy
         GHC.Utils.Outputable
