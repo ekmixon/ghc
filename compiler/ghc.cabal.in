@@ -385,6 +385,7 @@ Library
         GHC.Data.StringBuffer
         GHC.Data.TrieMap
         GHC.Driver.Backend
+        GHC.Driver.Pipeline.Semaphore
         GHC.Driver.Backpack
         GHC.Driver.Backpack.Syntax
         GHC.Driver.CmdLine
