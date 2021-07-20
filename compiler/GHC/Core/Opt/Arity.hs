@@ -13,7 +13,7 @@
 module GHC.Core.Opt.Arity
    ( -- Finding arity
      manifestArity, joinRhsArity, exprArity, typeArity
-   , findRhsArity
+   , typeOneShots, findRhsArity
    , exprBotStrictness_maybe
 
    -- ** Eta expansion

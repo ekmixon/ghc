@@ -387,7 +387,7 @@ simplLazyBind env top_lvl is_rec bndr bndr1 rhs rhs_se
                         ; return (poly_floats, body3) }
 
         ; let env' = env `setInScopeFromF` rhs_floats
-        ; (_empty_flaots, rhs') <- rebuildLam env' tvs' (emptyFloats env') body3 rhs_cont
+        ; (_empty_floats, rhs') <- rebuildLam env' tvs' (emptyFloats env') body3 rhs_cont
         ; assertPpr (isEmptyFloats _empty_floats) (ppr _empty_floats) $ return ()
           -- rebuildLam returns emptyFloats if given emptyFloats
         ; (bind_float, env2) <- completeBind env' top_lvl is_rec Nothing bndr bndr1 rhs'

@@ -1590,8 +1590,8 @@ rebuildLam env bndrs floats body cont
       | -- Note [Casts and lambdas]
         sm_eta_expand (getMode env)
       , not (any bad bndrs)
-      = do { lam <- mkLam' dflags bndrs body
-           ; return (mkCast lam (mkPiCos Representational bndrs co)) }
+      = do { (floats, lam) <- mkLam' dflags bndrs body
+           ; return (floats, mkCast lam (mkPiCos Representational bndrs co)) }
       where
         co_vars  = tyCoVarsOfCo co
         bad bndr = isCoVar bndr && bndr `elemVarSet` co_vars
@@ -1749,7 +1749,6 @@ wantEtaExpansion (App e _)              = wantEtaExpansion e
 wantEtaExpansion (Var {})               = False
 wantEtaExpansion (Lit {})               = False
 wantEtaExpansion _                      = True
->>>>>>> Eta-reduce PAPs
 
 {-
 Note [Eta-expanding at let bindings]

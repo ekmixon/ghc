@@ -183,10 +183,10 @@ simpleOptPgm opts this_mod binds rules =
 type SimpleClo = (SimpleOptEnv, InExpr)
 
 data SimpleOptEnv
-  = SOE { soe_opts :: {-# UNPACK #-} ! SimpleOpts
+  = SOE { soe_opts :: {-# UNPACK #-} !SimpleOpts
              -- ^ Simplifier options
 
-        , soe_inl   :: IdEnv SimpleClo
+        , soe_inl :: IdEnv SimpleClo
              -- ^ Deals with preInlineUnconditionally; things
              -- that occur exactly once and are inlined
              -- without having first been simplified
