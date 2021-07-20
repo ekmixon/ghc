@@ -1662,9 +1662,13 @@ simplLam env bndrs body (TickIt tickish cont)
 simplLam env bndrs body cont
   = do  { (env', bndrs')  <- simplLamBndrs env bndrs
         ; let body_ty' = substTy env' (exprType body)
+        ; traceSmpl "simplLam1" (ppr bndrs' $$ ppr body)
         ; (floats, body') <- simplExprF env' body (mkBoringStop body_ty')
+        ; traceSmpl "simplLam2" (ppr body')
         ; (floats1, new_lam) <- rebuildLam env' bndrs' floats body' cont
+        ; traceSmpl "simplLam3" (ppr new_lam)
         ; (floats2, expr')   <- rebuild (env `setInScopeFromF` floats1) new_lam cont
+        ; traceSmpl "simplLam4" (ppr expr')
         ; return (floats1 `addFloats` floats2, expr') }
 
 -------------

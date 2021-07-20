@@ -490,16 +490,16 @@ isClassOpId_maybe id = case Var.idDetails id of
                         _other        -> Nothing
 
 isPrimOpId id = case Var.idDetails id of
-                        PrimOpId _ -> True
-                        _          -> False
+                        PrimOpId {} -> True
+                        _           -> False
 
 isDFunId id = case Var.idDetails id of
                         DFunId {} -> True
                         _         -> False
 
 isPrimOpId_maybe id = case Var.idDetails id of
-                        PrimOpId op -> Just op
-                        _           -> Nothing
+                        PrimOpId op _ -> Just op
+                        _             -> Nothing
 
 isFCallId id = case Var.idDetails id of
                         FCallId _ -> True
@@ -564,7 +564,7 @@ hasNoBinding :: Id -> Bool
 -- exception to this is unboxed tuples and sums datacons, which definitely have
 -- no binding
 hasNoBinding id = case Var.idDetails id of
---                        PrimOpId _       -> True    -- See Note [Eta expanding primops] in GHC.Builtin.PrimOps
+                        PrimOpId _ lev_poly -> lev_poly    -- See Note [Eta expanding primops] in GHC.Builtin.PrimOps
 -- Omit this: #19982
                         FCallId _        -> True
                         DataConWorkId dc -> isUnboxedTupleDataCon dc || isUnboxedSumDataCon dc

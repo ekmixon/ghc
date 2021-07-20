@@ -1730,12 +1730,9 @@ tryEtaExpandRhs env is_rec bndr rhs
     in_scope  = getInScope env
     dflags    = sm_dflags mode
     old_arity = exprArity rhs
-    ty_arity  = typeArity (idType bndr)
 
     arity_type = findRhsArity dflags is_rec bndr rhs old_arity
                  `extendArityType` idCallArity bndr
-                 `trimArityType`   ty_arity
-    -- minWithArity: see Note [Arity trimming] in GHC.Core.Opt.Arity
 
     new_arity = arityTypeArity arity_type
 

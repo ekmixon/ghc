@@ -741,6 +741,9 @@ findRhsArity :: DynFlags -> RecFlag -> Id -> CoreExpr -> Arity -> ArityType
 --  (a) any application of e to <n arguments will not do much work,
 --      so it is safe to expand e  ==>  (\x1..xn. e x1 .. xn)
 --  (b) if is_bot=True, then e applied to n args is guaranteed bottom
+--
+-- Returns an ArityType that is guaranteed trimmed to typeArity of 'bndr'
+--
 findRhsArity dflags is_rec bndr rhs old_arity
   = rhs_arity_type `combineWithDemandOneShots` idDemandOneShots bndr
        -- combineWithDemandOneShots: take account of the demand on the
@@ -750,10 +753,13 @@ findRhsArity dflags is_rec bndr rhs old_arity
   where
     init_env :: ArityEnv
     init_env = findRhsArityEnv dflags
+    ty_arity = typeArity (idType bndr)
 
     rhs_arity_type = case is_rec of
                         Recursive    -> go 0 botArityType
                         NonRecursive -> arityType init_env rhs
+                                        `trimArityType` ty_arity
+
       -- In the recursive case we always do one step, but usually that
       -- produces a result equal to old_arity, and then we stop right
       -- away, because old_arity is assumed to be sound. In other
@@ -776,6 +782,8 @@ findRhsArity dflags is_rec bndr rhs old_arity
 
     step :: ArityType -> ArityType
     step cur_at = arityType env rhs
+                  `trimArityType`   ty_arity
+                 -- See Note [Trim arity inside the loop]
       where
         env = extendSigEnv init_env bndr cur_at
 
@@ -873,6 +881,19 @@ we get arity type \?.T, e.g. arity 1, because now we are no longer allowed
 to floatIn the non-cheap let-binding.  Which is all perfectly benign, but
 means we do two iterations (well, actually 3 'step's to detect we are stable)
 and don't want to emit the warning.
+
+Note [Trim arity inside the loop]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Here's an example (from gadt/nbe.hs) which caused trouble.
+  data Exp g t where
+     Lam :: Ty a -> Exp (g,a) b -> Exp g (a->b)
+
+  eval :: Exp g t -> g -> t
+  eval (Lam _ e) g = \a -> eval e (g,a)
+
+The danger is that we get arity 3 from analysing this; and the
+next time arity 4, and so on for ever.  Solution: use trimArityType
+on each iteration.
 
 Note [Combining arity type with demand info]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
