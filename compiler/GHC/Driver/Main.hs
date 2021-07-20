@@ -1058,7 +1058,7 @@ genModDetails :: HscEnv -> ModIface -> IO ModDetails
 genModDetails hsc_env old_iface
   = do
     new_details <- {-# SCC "tcRnIface" #-}
-                   initIfaceLoad  hsc_env (typecheckIface old_iface)
+                   initIfaceCheck (text "gen_mod") hsc_env (typecheckIface old_iface)
     dumpIfaceStats hsc_env
     return new_details
 
