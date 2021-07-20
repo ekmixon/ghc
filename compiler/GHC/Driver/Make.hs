@@ -152,6 +152,7 @@ import GHC.Utils.Trace
 import GHC.Types.TypeEnv
 import Control.Monad.Trans.State.Lazy
 import Control.Monad.Trans.Class
+import qualified Data.Set as S
 
 label_self :: String -> IO ()
 label_self thread_name = do
@@ -995,10 +996,19 @@ createBuildMap deps_map plan = evalStateT (buildLoop plan) (BuildLoopState M.emp
 
       -- 1. Build all the dependencies in this loop
       nbi <- mapM (buildSingleModule (Just knot_var)) ms
+      let ms_keys = map mkNodeKey ms
+      -- 2. Find all transitive dependencies
+      let trans_deps = concat $ expectJust "build_module" $ sequence $ map (flip Map.lookup deps_map ) ms_keys
+      -- 3. Remove loop modules
+          final_deps = S.toList (S.fromList trans_deps `S.difference` S.fromList ms_keys)
+      home_mod_map <- getBuildMap
+      let doc_build_deps = catMaybes $ map (flip M.lookup home_mod_map) final_deps
+          build_deps = map snd doc_build_deps
+
       let
           ms_i = zip3 (mapMaybe (fmap (msKey . emsModSummary) . moduleGraphNodeModule) ms) nbi [0..]
       let p i = do
-            hmis <- use (Make_TypecheckLoop knot_var ms)
+            hmis <- use (Make_TypecheckLoop knot_var ms build_deps)
             return (hmis !! i)
       let do_one (m, nb, i) = do
             let pipe = Just <$> p i
@@ -1362,7 +1372,7 @@ setHPTtypecheckLoop hsc_env mns = do
 
 -- NB: sometimes mods has duplicates; this is harmless because
 -- any duplicates get clobbered in addListToHpt and never get forced.
-typecheckLoop :: HscEnv -> [HomeModInfo] -> IO [(ModuleName, HomeModInfo)]
+typecheckLoop :: HasCallStack => HscEnv -> [HomeModInfo] -> IO [(ModuleName, HomeModInfo)]
 typecheckLoop hsc_env hmis = do
   debugTraceMsg logger 2 $
      text "Re-typechecking loop: "
@@ -2301,14 +2311,16 @@ cyclicModuleErr mss
 -- | Nodes in the build graph, the result of each of these nodes is
 -- cached so guaranteed to only build once.
 data MakeAction a where
-  Make_TypecheckLoop :: ModuleEnv (IORef TypeEnv) -> [ModuleGraphNode]
-                 ->  MakeAction [HomeModInfo]
+  Make_TypecheckLoop :: ModuleEnv (IORef TypeEnv)
+                 -> [ModuleGraphNode]
+                 -> [WrappedMakePipeline (Maybe HomeModInfo)]
+                 -> MakeAction [HomeModInfo]
   Make_CompileModule :: ModSummary -> MakeAction HomeModInfo
   Make_TypecheckInstantiatedUnit :: InstantiatedUnit
                              -> MakeAction ()
 
 instance Outputable (MakeAction a) where
-  ppr (Make_TypecheckLoop _knot_var nks) = hcat [text "TC:", ppr (nks)]
+  ppr (Make_TypecheckLoop _knot_var nks _) = hcat [text "TC:", ppr (nks)]
   ppr (Make_CompileModule ms) = hcat [text "Compile:", ppr (ms_mod ms) ]
   ppr (Make_TypecheckInstantiatedUnit iu) = hcat [text "Inst:", ppr iu]
 
@@ -2326,7 +2338,7 @@ instance GEq MakeAction where
   a `geq` b = (a `gcompare` b) == EQ
 
 instance GOrd MakeAction where
-  Make_TypecheckLoop _ a `gcompare` Make_TypecheckLoop _ b = map mkNodeKey a `compare` map mkNodeKey b
+  Make_TypecheckLoop _ a _ `gcompare` Make_TypecheckLoop _ b _ = map mkNodeKey a `compare` map mkNodeKey b
   Make_CompileModule ms `gcompare` Make_CompileModule ms' = (ms_mnwib ms) `compare` (ms_mnwib ms')
   Make_TypecheckInstantiatedUnit iu `gcompare` Make_TypecheckInstantiatedUnit iu' = iu `compare` iu'
   Make_TypecheckLoop {} `gcompare` _ = LT
@@ -2425,10 +2437,11 @@ actionInterpret fa =
                       , hsc_type_env_vars = knot_var }
       lift $ wrapAction lcl_hsc_env $ upsweep_mod lcl_hsc_env (Just batchMsg) old_hpt mod k n -- k n
         `MC.finally` finishLogQueue lq
-    Make_TypecheckLoop knot_var nk -> do
+    Make_TypecheckLoop knot_var nk deps -> do
       hsc_env <- asks hsc_env
+      other_deps <- process_deps deps
       hmis <- process_deps (map useMGN nk)
-      let lcl_hsc_env = hsc_env { hsc_type_env_vars = knot_var }
+      let lcl_hsc_env = addDepsToHscEnv other_deps $ hsc_env { hsc_type_env_vars = knot_var }
       liftIO $ map snd <$> typecheckLoop lcl_hsc_env hmis
 
 useMGN :: TPipelineClass MakeAction p => ModuleGraphNode -> p (Maybe HomeModInfo)
