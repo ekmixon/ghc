@@ -143,6 +143,7 @@ import Data.List (partition, nub)
 import Control.Monad
 import Control.Applicative
 
+import GHC.Driver.Ppr
 -- -----------------------------------------------------------------------------
 -- Top level of the register allocator
 
@@ -872,7 +873,15 @@ findPrefRealReg vreg = do
 
 -- reading is redundant with reason, but we keep it around because it's
 -- convenient and it maintains the recursive structure of the allocator. -- EZY
--- {-# NOINLINE allocRegsAndSpill_spill #-}
+
+-- Notes on performance
+-- allocRegsAndSpill_spill is called whenever we deal with a vreg which
+-- is not in a register already. This can be the case *very* often especial
+-- for sequences of many consecutive assignments to different vregs.
+-- In these cases we can expect that:
+-- * Most vregs have an assignment, and it's in memory.
+-- * There are very few assignments live in regs.
+-- So we try to avoid touching the assignments living in memory when we can.
 allocRegsAndSpill_spill :: (FR freeRegs, Instruction instr)
                         => Bool
                         -> [VirtualReg]
@@ -888,13 +897,13 @@ allocRegsAndSpill_spill reading keep spills alloc r rs assig spill_loc
         freeRegs <- getFreeRegsR
         let freeRegs_thisClass  = frGetFreeRegs platform (classOfVirtualReg r) freeRegs :: [RealReg]
 
-        -- Can we put the variable into a register it already was?
-        pref_reg <- findPrefRealReg r
-
         case freeRegs_thisClass of
          -- case (2): we have a free register
          (first_free : _) ->
-           do   let !final_reg
+           do   -- Can we put the variable into a register it already was?
+                pref_reg <- findPrefRealReg r
+
+                let !final_reg
                         | Just reg <- pref_reg
                         , reg `elem` freeRegs_thisClass
                         = reg
@@ -921,7 +930,7 @@ allocRegsAndSpill_spill reading keep spills alloc r rs assig spill_loc
                 --      this would require writing the reg to a new slot before using it.
                 let candidates_inReg
                         = [ (temp, reg)
-                          | (temp, reg) <- nonDetUFMToList (lm_inReg candidates')
+                          | (temp, InReg reg) <- nonDetUFMToList (lm_inReg candidates')
                           , targetClassOfRealReg platform reg == targetClass
                           , temp `notElem` (map getUnique keep) ]
 
@@ -930,13 +939,13 @@ allocRegsAndSpill_spill reading keep spills alloc r rs assig spill_loc
                         -- we have a temporary that is in both register and mem,
                         -- just free up its register for use.
                         | candidates_inBoth <- (nonDetUFMToList (lm_inBoth candidates'))
-                        , ((temp, InBoth my_reg slot) : _) <- filter
-                                (\(u,InBoth reg _) -> u `notElem` (map getUnique keep) &&
+                        , ((temp, loc@(InBoth my_reg slot)) : _) <- filter
+                                (\(u,(InBoth reg _)) -> u `notElem` (map getUnique keep) &&
                                                       targetClassOfRealReg platform reg == targetClass)
                                 candidates_inBoth
                         = do    spills' <- loadTemp r spill_loc my_reg spills
-                                let assig1  = addToRLM_Directly assig temp (InMem slot)
-                                let assig2  = addToRLM assig1 r $! newLocation spill_loc my_reg
+                                let assig1  = addToRLMUnsafe_Directly (delFromRLMLoc assig temp loc) temp (InMem slot)
+                                let assig2  = addToRLMUnsafe (delFromRLMLoc assig1 r (InMem (-1))) r $! newLocation spill_loc my_reg
 
                                 setAssigR $ assig2
                                 allocateRegsAndSpill reading keep spills' (my_reg:alloc) rs
@@ -952,8 +961,9 @@ allocRegsAndSpill_spill reading keep spills alloc r rs assig spill_loc
                                 recordSpill (SpillAlloc temp_to_push_out)
 
                                 -- update the register assignment
-                                let assig1  = addToRLM_Directly assig temp_to_push_out (InMem slot)
-                                let assig2  = addToRLM assig1 r $! newLocation spill_loc my_reg
+                                let assig1  = addToRLMUnsafe_Directly (delFromRLMLoc assig temp_to_push_out (InReg my_reg))
+                                                                      temp_to_push_out (InMem slot)
+                                let assig2  = addToRLMUnsafe (delFromRLMLoc assig1 r (InMem (-1))) r $! newLocation spill_loc my_reg
                                 setAssigR $ assig2
 
                                 -- if need be, load up a spilled temp into the reg we've just freed up.
