@@ -3,7 +3,6 @@
 --      by NCGMonad and the register allocators, which are shared
 --      by all architectures.
 --
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -ddump-simpl -ddump-stg -ddump-to-file -O #-}
 
 module GHC.Platform.Reg (
         RegNo,
