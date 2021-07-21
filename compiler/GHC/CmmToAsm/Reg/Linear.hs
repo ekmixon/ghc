@@ -737,8 +737,8 @@ saveClobberedTemps clobbered dying
 
 
 
--- | Mark all these real regs as allocated,
---      and kick out their vreg assignments.
+-- | Mark all these real regs as clobbered,
+--      and update their vreg assignments.
 --
 clobberRegs :: FR freeRegs => [RealReg] -> RegM freeRegs ()
 clobberRegs []
@@ -833,8 +833,11 @@ allocateRegsAndSpill reading keep spills alloc (r:rs)
                 -- InReg, because the memory value is no longer valid.
                 -- NB2. This is why we must process written registers here, even if they
                 -- are also read by the same instruction.
-                Just (InBoth my_reg _)
-                 -> do  when (not reading) (setAssigR (addToRLM assig r (InReg my_reg)))
+                Just loc@(InBoth my_reg _)
+                 -> do  when (not reading) $ do
+                                let !assig1 = delFromRLMLoc assig r loc
+                                    !assig2 = (addToRLMUnsafe assig1 r (InReg my_reg))
+                                (setAssigR assig2)
                         allocateRegsAndSpill reading keep spills (my_reg:alloc) rs
 
                 -- Not already in a register, so we need to find a free one...

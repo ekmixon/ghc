@@ -251,6 +251,7 @@ addToRLM assig reg loc  =
         let !vreg = getUnique reg
         in addToRLM_Directly assig vreg loc
 
+-- These unsafe invariants assume the added mapping is not already present in any of the maps.
 addToRLMUnsafe_Directly :: RegLocMap -> Unique -> Loc -> RegLocMap
 addToRLMUnsafe_Directly assig@(RegLocMap inReg inMem inBoth) ureg loc  =
         case loc of
@@ -268,13 +269,9 @@ addToRLMUnsafe assig reg loc  =
 
 nonDetStrictFoldRLM_DirectlyM :: forall b m. (Monad m) => (Unique -> b -> Loc -> m b) -> b -> RegLocMap -> m b
 nonDetStrictFoldRLM_DirectlyM f r (RegLocMap inReg inMem inBoth) = do
-        let f' = f
-        -- let f' :: Locable loc => Unique -> b -> loc -> m b
-        --     f' u r l =  let loc = (toLoc l) :: Loc
-        --                 in f u r loc
-        r' <- nonDetStrictFoldUFM_DirectlyM f' r inReg
-        r'' <- nonDetStrictFoldUFM_DirectlyM f' r' inMem
-        r''' <- nonDetStrictFoldUFM_DirectlyM f' r'' inBoth
+        r' <- nonDetStrictFoldUFM_DirectlyM f r inReg
+        r'' <- nonDetStrictFoldUFM_DirectlyM f r' inMem
+        r''' <- nonDetStrictFoldUFM_DirectlyM f r'' inBoth
         return r'''
 
 
