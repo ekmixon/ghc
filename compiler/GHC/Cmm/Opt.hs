@@ -357,7 +357,7 @@ cmmMachOpFoldM platform mop [x, (CmmLit (CmmInt n _))]
              CmmReg _ <- x ->   -- We duplicate x in signedQuotRemHelper, hence require
                                 -- it is a reg.  FIXME: remove this restriction.
                 Just $! (cmmMachOpFold platform (MO_S_Shr rep)
-                  [signedQuotRemHelper rep p, CmmLit (CmmInt p rep)])
+                  [signedQuotRemHelper rep p, CmmLit (CmmInt p $ wordWidth platform)])
         MO_S_Rem rep
            | Just p <- exactLog2 n,
              CmmReg _ <- x ->   -- We duplicate x in signedQuotRemHelper, hence require
