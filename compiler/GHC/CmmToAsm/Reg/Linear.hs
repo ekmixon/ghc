@@ -917,16 +917,6 @@ allocRegsAndSpill_spill reading keep spills alloc r rs assig spill_loc
 
                 let !targetClass = classOfVirtualReg r
 
-                -- the vregs we could kick out that are already in a slot
-                let candidates_inBoth :: [(Unique, Loc)]
-                    candidates_inBoth = filter
-                        (\(u,InBoth reg _) -> u `notElem` (map getUnique keep) && targetClassOfRealReg platform reg == targetClass)
-                        (nonDetUFMToList (lm_inBoth candidates'))
-                        -- = [ (temp, reg, mem)
-                        -- --   | (temp, InBoth reg mem) <- nonDetUFMToList (lm_inBoth candidates')
-                        --   | (temp, InBoth reg mem) <- nonDetUFMToList (lm_inBoth candidates')
-                        --   ]
-
                 -- the vregs we could kick out that are only in a reg
                 --      this would require writing the reg to a new slot before using it.
                 let candidates_inReg
@@ -939,7 +929,11 @@ allocRegsAndSpill_spill reading keep spills alloc r rs assig spill_loc
 
                         -- we have a temporary that is in both register and mem,
                         -- just free up its register for use.
-                        | (temp, InBoth my_reg slot) : _      <- candidates_inBoth
+                        | candidates_inBoth <- (nonDetUFMToList (lm_inBoth candidates'))
+                        , ((temp, InBoth my_reg slot) : _) <- filter
+                                (\(u,InBoth reg _) -> u `notElem` (map getUnique keep) &&
+                                                      targetClassOfRealReg platform reg == targetClass)
+                                candidates_inBoth
                         = do    spills' <- loadTemp r spill_loc my_reg spills
                                 let assig1  = addToRLM_Directly assig temp (InMem slot)
                                 let assig2  = addToRLM assig1 r $! newLocation spill_loc my_reg
