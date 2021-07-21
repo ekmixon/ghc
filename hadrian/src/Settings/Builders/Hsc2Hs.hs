@@ -50,11 +50,13 @@ getCFlags = do
             , getContextData cppOpts
             , getContextData depCcOpts
             , cWarnings
+            , arg "--target=aarch64-apple-darwin"
             , arg "-include", arg cabalMacros ]
 
 getLFlags :: Expr [String]
 getLFlags =
     mconcat [ getStagedSettingList ConfGccLinkerArgs
             , ldArgs
+            , arg "--target=aarch64-apple-darwin"
             , getContextData ldOpts
             , getContextData depLdOpts ]

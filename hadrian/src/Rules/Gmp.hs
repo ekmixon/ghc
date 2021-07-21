@@ -121,6 +121,7 @@ gmpRules = do
                      [ builderEnvironment "CC" $ Cc CompileC (stage ctx)
                      , builderEnvironment "AR" (Ar Unpack (stage ctx))
                      , builderEnvironment "NM" Nm
+                     , pure $ AddEnv "CFLAGS" "--target=aarch64-apple-darwin"
                      ]
             need [mk <.> "in"]
             buildWithCmdOptions env $
