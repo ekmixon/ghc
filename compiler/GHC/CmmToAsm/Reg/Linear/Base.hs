@@ -15,10 +15,11 @@ module GHC.CmmToAsm.Reg.Linear.Base (
         -- the allocator monad
         RA_State(..),
 
-        RegLocMap(..), addToRLM, addToRLM_Directly, delFromRLM, delFromRLM_Directly, delFromRLMLoc, elemRLM, lookupRLM,
+        RegLocMap(..), addToRLM, addToRLM_Directly, delFromRLM, delFromRLM_Directly,
+        delFromRLMLoc, elemRLM, lookupRLM,
         filterRLM_Directly, lookupRLM_Directly, nonDetRLMToList, nonDetEqRLM,
         emptyRegLocMap, nonDetStrictFoldRLM_DirectlyM,
-        delListFromRLM_Directly,
+        delListFromRLM_Directly, delListFromRLM,
         isInReg, isInRegOrBoth
 )
 
@@ -126,11 +127,9 @@ lookupRLM_Directly (RegLocMap inReg inMem inBoth) unique =
 {-# SPECIALIZE lookupRLM :: RegLocMap -> Reg -> Maybe Loc #-}
 {-# SPECIALIZE lookupRLM :: RegLocMap -> VirtualReg -> Maybe Loc #-}
 lookupRLM :: IsReg reg => RegLocMap -> reg -> Maybe Loc
-lookupRLM (RegLocMap inReg inMem inBoth) vreg =
+lookupRLM assig@(RegLocMap inReg inMem inBoth) vreg =
         let !ureg = getUnique vreg in
-                (InReg <$> lookupUFM_Directly inReg ureg) <|>
-                (InMem <$> lookupUFM_Directly inMem ureg ) <|>
-                (lookupUFM_Directly inBoth ureg)
+        lookupRLM_Directly assig ureg
 
 {-# INLINE delFromRLMLoc #-} -- Inlining allows all but one alternatives to become dead code.
 delFromRLMLoc :: IsReg reg => RegLocMap -> reg -> Loc -> RegLocMap
@@ -307,6 +306,14 @@ delListFromRLM_Directly (RegLocMap inReg inMem inBoth) del =
                 (delListFromUFM_Directly inMem del)
                 (delListFromUFM_Directly inBoth del)
 
+delListFromRLM :: IsReg reg => RegLocMap -> [reg] -> RegLocMap
+delListFromRLM (RegLocMap inReg inMem inBoth) del =
+        RegLocMap
+                (foldl' (\b e -> delFromUFM_Directly b (getUnique e)) inReg del)
+                (foldl' (\b e -> delFromUFM_Directly b (getUnique e)) inMem del)
+                (foldl' (\b e -> delFromUFM_Directly b (getUnique e)) inBoth del)
+                -- (delListFromUFM inMem del)
+                -- (delListFromUFM inBoth del)
 
 
 -- | Reasons why instructions might be inserted by the spiller.

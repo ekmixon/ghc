@@ -87,8 +87,7 @@ joinToTargets' block_live new_blocks block_id instr (dest:dests)
 
         -- adjust the current assignment to remove any vregs that are not live
         -- on entry to the destination block.
-        let Just live_set       = mapLookup dest block_live
-        -- TODO: Isn't this just a union
+        let Just live_set       = mapLookup dest block_live :: Maybe RegSet
         let still_live uniq _   = uniq `elemUniqSet_Directly` live_set
         let adjusted_assig      = filterRLM_Directly still_live assig :: RegLocMap
 
@@ -100,6 +99,9 @@ joinToTargets' block_live new_blocks block_id instr (dest:dests)
                         -- See Note [Unique Determinism and code generation]
                         , not (elemUniqSet_Directly reg live_set)
                         , r          <- regsOfLoc loc ]
+        -- TODO: to_free and still_live could be computed better by
+        -- partitioning `assig` I imagine.
+        -- We also could keep it a map.
 
         case mapLookup dest block_assig of
          Nothing

@@ -442,12 +442,8 @@ raInsn block_live new_instrs id (LiveInstr (Instr instr) (Just live))
                           -- TODO: Only check InReg/InMem?
                           not (dst `elemRLM` assig),
                           isRealReg src || isInReg src assig -> do
-           let x = dst :: Reg
            case src of
-              -- TODO: RLM: Do we really need to remove the old assignment here?
-              -- can it even be live?
-
-              (RegReal rr) -> setAssigR (addToRLM (delFromRLM assig dst) dst (InReg rr))
+              (RegReal rr) -> setAssigR (addToRLM assig dst (InReg rr))
                 -- if src is a fixed reg, then we just map dest to this
                 -- reg in the assignment.  src must be an allocatable reg,
                 -- otherwise it wouldn't be in r_dying.
@@ -466,6 +462,7 @@ raInsn block_live new_instrs id (LiveInstr (Instr instr) (Just live))
            return (new_instrs, [])
 
         _ -> genRaInsn block_live new_instrs id instr
+                        -- TODO: There is zero reason we we couldn't keep these as sets.
                         (nonDetEltsUniqSet $ liveDieRead live)
                         (nonDetEltsUniqSet $ liveDieWrite live)
                         -- See Note [Unique Determinism and code generation]
@@ -642,11 +639,12 @@ releaseRegs regs = do
       loop assig !free (r:rs) =
          -- TODO: We can do a lot better here with the new RegLocMap
          case lookupRLM assig r of
-         Just loc@(InBoth real _) -> loop (delFromRLMLoc assig r loc)
+         Just loc -> case loc of
+            InBoth real _ -> loop (delFromRLMLoc assig r loc)
                                       (frReleaseReg platform real free) rs
-         Just loc@(InReg real)    -> loop (delFromRLMLoc assig r loc)
+            InReg real    -> loop (delFromRLMLoc assig r loc)
                                       (frReleaseReg platform real free) rs
-         Just loc                 -> loop (delFromRLMLoc assig r loc) free rs
+            InMem _       -> loop (delFromRLMLoc assig r loc) free rs
          Nothing -> loop assig free rs
   loop assig free regs
 
@@ -774,13 +772,14 @@ clobberRegs clobbered
         -- also catches temps which were loaded up during allocation
         -- of read registers, not just those saved in saveClobberedTemps.
 
+        -- TODO: Make a fold, only fold over inBoth
         clobber :: RegLocMap -> [(Unique,Loc)] -> RegLocMap
         clobber assig []
                 = assig
 
         clobber assig ((temp, InBoth reg slot) : rest)
                 | any (realRegsAlias reg) clobbered
-                = clobber (addToRLM_Directly (delFromRLM_Directly assig temp) temp (InMem slot)) rest
+                = clobber (addToRLM_Directly assig temp (InMem slot)) rest
 
         clobber assig (_:rest)
                 = clobber assig rest
@@ -834,7 +833,7 @@ allocateRegsAndSpill reading keep spills alloc (r:rs)
                 -- NB2. This is why we must process written registers here, even if they
                 -- are also read by the same instruction.
                 Just (InBoth my_reg _)
-                 -> do  when (not reading) (setAssigR (addToRLM (delFromRLM assig r) r (InReg my_reg)))
+                 -> do  when (not reading) (setAssigR (addToRLM assig r (InReg my_reg)))
                         allocateRegsAndSpill reading keep spills (my_reg:alloc) rs
 
                 -- Not already in a register, so we need to find a free one...
@@ -873,6 +872,7 @@ findPrefRealReg vreg = do
 
 -- reading is redundant with reason, but we keep it around because it's
 -- convenient and it maintains the recursive structure of the allocator. -- EZY
+-- {-# NOINLINE allocRegsAndSpill_spill #-}
 allocRegsAndSpill_spill :: (FR freeRegs, Instruction instr)
                         => Bool
                         -> [VirtualReg]
@@ -902,7 +902,7 @@ allocRegsAndSpill_spill reading keep spills alloc r rs assig spill_loc
                         = first_free
                 spills'   <- loadTemp r spill_loc final_reg spills
 
-                setAssigR $ (addToRLM (delFromRLM assig r) r $! newLocation spill_loc final_reg)
+                setAssigR $ (addToRLM assig r $! newLocation spill_loc final_reg)
                 setFreeRegsR $  frAllocateReg platform final_reg freeRegs
 
                 allocateRegsAndSpill reading keep spills' (final_reg : alloc) rs
@@ -911,43 +911,37 @@ allocRegsAndSpill_spill reading keep spills alloc r rs assig spill_loc
           -- case (3): we need to push something out to free up a register
          [] ->
            do
-                let inRegOrBoth (InReg _) = True
-                    inRegOrBoth (InBoth _ _) = True
-                    inRegOrBoth _ = False
                 let candidates' :: RegLocMap
                     candidates' =
-                        -- TODO: Avoud the map
-                      flip delListFromRLM_Directly (map getUnique keep) $
                       assig { lm_inMem = mempty }
-                --       filterRLM_Directly isInRegOrBoth $
-                --       assig
 
-                      -- This is non-deterministic but we do not
-                      -- currently support deterministic code-generation.
-                      -- See Note [Unique Determinism and code generation]
-                let candidates = nonDetRLMToList candidates'
+                let !targetClass = classOfVirtualReg r
 
                 -- the vregs we could kick out that are already in a slot
-                let candidates_inBoth :: [(Unique, RealReg, StackSlot)]
-                    candidates_inBoth
-                        = [ (temp, reg, mem)
-                          | (temp, InBoth reg mem) <- candidates
-                          , targetClassOfRealReg platform reg == classOfVirtualReg r ]
+                let candidates_inBoth :: [(Unique, Loc)]
+                    candidates_inBoth = filter
+                        (\(u,InBoth reg _) -> u `notElem` (map getUnique keep) && targetClassOfRealReg platform reg == targetClass)
+                        (nonDetUFMToList (lm_inBoth candidates'))
+                        -- = [ (temp, reg, mem)
+                        -- --   | (temp, InBoth reg mem) <- nonDetUFMToList (lm_inBoth candidates')
+                        --   | (temp, InBoth reg mem) <- nonDetUFMToList (lm_inBoth candidates')
+                        --   ]
 
                 -- the vregs we could kick out that are only in a reg
                 --      this would require writing the reg to a new slot before using it.
                 let candidates_inReg
                         = [ (temp, reg)
-                          | (temp, InReg reg) <- candidates
-                          , targetClassOfRealReg platform reg == classOfVirtualReg r ]
+                          | (temp, reg) <- nonDetUFMToList (lm_inReg candidates')
+                          , targetClassOfRealReg platform reg == targetClass
+                          , temp `notElem` (map getUnique keep) ]
 
                 let result
 
                         -- we have a temporary that is in both register and mem,
                         -- just free up its register for use.
-                        | (temp, my_reg, slot) : _      <- candidates_inBoth
+                        | (temp, InBoth my_reg slot) : _      <- candidates_inBoth
                         = do    spills' <- loadTemp r spill_loc my_reg spills
-                                let assig1  = addToRLM_Directly (delFromRLM_Directly assig temp) temp (InMem slot)
+                                let assig1  = addToRLM_Directly assig temp (InMem slot)
                                 let assig2  = addToRLM assig1 r $! newLocation spill_loc my_reg
 
                                 setAssigR $ assig2
@@ -964,7 +958,7 @@ allocRegsAndSpill_spill reading keep spills alloc r rs assig spill_loc
                                 recordSpill (SpillAlloc temp_to_push_out)
 
                                 -- update the register assignment
-                                let assig1  = addToRLM_Directly (delFromRLM_Directly assig temp_to_push_out) temp_to_push_out (InMem slot)
+                                let assig1  = addToRLM_Directly assig temp_to_push_out (InMem slot)
                                 let assig2  = addToRLM assig1 r $! newLocation spill_loc my_reg
                                 setAssigR $ assig2
 
