@@ -629,13 +629,14 @@ genRaInsn block_live new_instrs block_id instr r_dying w_dying = do
 -- -----------------------------------------------------------------------------
 -- releaseRegs
 
-releaseRegs :: FR freeRegs => [Reg] -> RegM freeRegs ()
+releaseRegs :: forall freeRegs. FR freeRegs => [Reg] -> RegM freeRegs ()
 releaseRegs regs = do
   platform <- getPlatform
   assig <- getAssigR
   free <- getFreeRegsR
 
-  let loop assig !free [] = do setAssigR assig; setFreeRegsR free; return ()
+  let loop :: RegLocMap -> freeRegs -> [Reg] -> RegM freeRegs ()
+      loop assig !free [] = do setAssigR assig; setFreeRegsR free; return ()
       loop assig !free (RegReal rr : rs) = loop assig (frReleaseReg platform rr free) rs
       loop assig !free (r:rs) =
          -- TODO: We can do a lot better here with the new RegLocMap
@@ -678,7 +679,8 @@ saveClobberedTemps [] _
 saveClobberedTemps clobbered dying
  = do
         assig   <- getAssigR :: RegM freeRegs (RegLocMap)
-        (assig',instrs) <- nonDetStrictFoldRLM_DirectlyM maybe_spill (assig,[]) assig
+        -- maybe_spill only cares about InReg so no point in folding over the other cases.
+        (assig',instrs) <- nonDetStrictFoldUFM_DirectlyM maybe_spill (assig,[]) (lm_inReg assig)
         setAssigR assig'
         return $ -- mkComment (text "<saveClobberedTemps>") ++
                  instrs
@@ -700,8 +702,8 @@ saveClobberedTemps clobbered dying
 
 
      -- See Note [UniqFM and the register allocator]
-     clobber :: Unique -> (RegLocMap,[instr]) -> (RealReg) -> RegM freeRegs (RegLocMap,[instr])
-     clobber temp (assig,instrs) (reg)
+     clobber :: Unique -> (RegLocMap,[instr]) -> RealReg -> RegM freeRegs (RegLocMap,[instr])
+     clobber temp (assig,instrs) reg
        = do platform <- getPlatform
 
             freeRegs <- getFreeRegsR
@@ -716,7 +718,9 @@ saveClobberedTemps clobbered dying
               (my_reg : _) -> do
                   setFreeRegsR (frAllocateReg platform my_reg freeRegs)
 
-                  let new_assign = addToRLM_Directly assig temp (InReg my_reg)
+                  -- Safe, we only fold over InReg mapped vregs, so the vreg must have
+                  -- already been mapped to a reg.
+                  let new_assign = addToRLMUnsafe_Directly assig temp (InReg my_reg)
                   let instr = mkRegRegMoveInstr platform
                                   (RegReal reg) (RegReal my_reg)
 
@@ -729,8 +733,7 @@ saveClobberedTemps clobbered dying
                   -- record why this reg was spilled for profiling
                   recordSpill (SpillClobber temp)
 
-                  -- TODO: Can do better
-                  let new_assign  = addToRLM_Directly assig temp (InBoth reg slot)
+                  let new_assign  = addToRLMUnsafe_Directly (delFromRLMLoc assig temp (InReg reg)) temp (InBoth reg slot)
 
                   return (new_assign, (spill ++ instrs))
 
@@ -748,20 +751,21 @@ clobberRegs clobbered
  = do   platform <- getPlatform
         freeregs <- getFreeRegsR
 
-        let gpRegs  = frGetFreeRegs platform RcInteger freeregs :: [RealReg]
-            fltRegs = frGetFreeRegs platform RcFloat   freeregs :: [RealReg]
-            dblRegs = frGetFreeRegs platform RcDouble  freeregs :: [RealReg]
+        -- let gpRegs  = frGetFreeRegs platform RcInteger freeregs :: [RealReg]
+        --     fltRegs = frGetFreeRegs platform RcFloat   freeregs :: [RealReg]
+        --     dblRegs = frGetFreeRegs platform RcDouble  freeregs :: [RealReg]
 
-        let extra_clobbered = [ r | r <- clobbered
-                                  , r `elem` (gpRegs ++ fltRegs ++ dblRegs) ]
+        -- let extra_clobbered = [ r | r <- clobbered
+        --                           , r `elem` (gpRegs ++ fltRegs ++ dblRegs) ]
 
-        setFreeRegsR $! foldl' (flip $ frAllocateReg platform) freeregs extra_clobbered
+        -- setFreeRegsR $! foldl' (flip $ frAllocateReg platform) freeregs extra_clobbered
 
-        -- setFreeRegsR $! foldl' (flip $ frAllocateReg platform) freeregs clobbered
+        setFreeRegsR $! foldl' (flip $ frAllocateReg platform) freeregs clobbered
 
         assig           <- getAssigR
         -- TODO: Avoid intermediate list
-        setAssigR $! clobber assig (nonDetRLMToList assig)
+        -- We only deal with the InBoth case here, see clobber below.
+        setAssigR $! clobber assig (nonDetUFMToList (lm_inBoth assig))
           -- This is non-deterministic but we do not
           -- currently support deterministic code-generation.
           -- See Note [Unique Determinism and code generation]
