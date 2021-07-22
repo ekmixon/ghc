@@ -1900,7 +1900,6 @@ occAnal :: OccEnv
         -> (UsageDetails,       -- Gives info only about the "interesting" Ids
             CoreExpr)
 
-occAnal _   expr@(Type _) = (emptyDetails,         expr)
 occAnal _   expr@(Lit _)  = (emptyDetails,         expr)
 occAnal env expr@(Var _)  = occAnalApp env (expr, [], [])
     -- At one stage, I gathered the idRuleVars for the variable here too,
@@ -1910,8 +1909,10 @@ occAnal env expr@(Var _)  = occAnalApp env (expr, [], [])
     -- rules in them, so the *specialised* versions looked as if they
     -- weren't used at all.
 
-occAnal _ (Coercion co)
-  = (addManyOccs emptyDetails (coVarsOfCo co), Coercion co)
+occAnal _   expr@(Type ty)
+  = (addManyOccs emptyDetails (coVarsOfType ty), expr)
+occAnal _ expr@(Coercion co)
+  = (addManyOccs emptyDetails (coVarsOfCo co), expr)
         -- See Note [Gather occurrences of coercion variables]
 
 {-
@@ -2832,10 +2833,12 @@ addManyOccs usage id_set = nonDetStrictFoldUniqSet addManyOcc usage id_set
 delDetails :: UsageDetails -> Id -> UsageDetails
 delDetails ud bndr
   = ud `alterUsageDetails` (`delVarEnv` bndr)
+       `addManyOccs` coVarsOfType (idType bndr)
 
 delDetailsList :: UsageDetails -> [Id] -> UsageDetails
 delDetailsList ud bndrs
   = ud `alterUsageDetails` (`delVarEnvList` bndrs)
+       `addManyOccs` coVarsOfTypes (map idType bndrs)
 
 emptyDetails :: UsageDetails
 emptyDetails = UD { ud_env       = emptyVarEnv
@@ -2871,10 +2874,6 @@ markAllManyNonTailIf False uds = uds
 
 lookupDetails :: UsageDetails -> Id -> OccInfo
 lookupDetails ud id
-  | isCoVar id  -- We do not currently gather occurrence info (from types)
-  = noOccInfo   -- for CoVars, so we must conservatively mark them as used
-                -- See Note [DoO not mark CoVars as dead]
-  | otherwise
   = case lookupVarEnv (ud_env ud) id of
       Just occ -> doZapping ud id occ
       Nothing  -> IAmDead
@@ -2939,20 +2938,19 @@ doZappingByUnique (UD { ud_z_many = many
     occ2 | uniq `elemVarEnvByKey` no_tail = markNonTail occ1
          | otherwise                      = occ1
 
-alterZappedSets :: UsageDetails -> (ZappedSet -> ZappedSet) -> UsageDetails
-alterZappedSets ud f
-  = ud { ud_z_many    = f (ud_z_many    ud)
+alterUsageDetails :: UsageDetails -> (OccInfoEnv -> OccInfoEnv) -> UsageDetails
+alterUsageDetails !ud f
+  = UD { ud_env       = f (ud_env       ud)
+       , ud_z_many    = f (ud_z_many    ud)
        , ud_z_in_lam  = f (ud_z_in_lam  ud)
        , ud_z_no_tail = f (ud_z_no_tail ud) }
 
-alterUsageDetails :: UsageDetails -> (OccInfoEnv -> OccInfoEnv) -> UsageDetails
-alterUsageDetails ud f
-  = ud { ud_env = f (ud_env ud) } `alterZappedSets` f
-
 flattenUsageDetails :: UsageDetails -> UsageDetails
-flattenUsageDetails ud
-  = ud { ud_env = mapUFM_Directly (doZappingByUnique ud) (ud_env ud) }
-      `alterZappedSets` const emptyVarEnv
+flattenUsageDetails ud@(UD { ud_env = env })
+  = UD { ud_env       = mapUFM_Directly (doZappingByUnique ud) env
+       , ud_z_many    = emptyVarEnv
+       , ud_z_in_lam  = emptyVarEnv
+       , ud_z_no_tail = emptyVarEnv }
 
 -------------------
 -- See Note [Adjusting right-hand sides]

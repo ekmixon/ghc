@@ -79,7 +79,7 @@ import GHC.Core.Coercion
 import GHC.Core.TyCon
 import GHC.Core.Multiplicity
 
-import GHC.Builtin.Names (makeStaticName, unsafeEqualityProofName)
+import GHC.Builtin.Names ( makeStaticName, unsafeEqualityProofIdKey )
 import GHC.Builtin.PrimOps
 
 import GHC.Types.Var
@@ -1661,14 +1661,24 @@ app_ok primop_ok fun args
         -> primop_ok op  -- Check the primop itself
         && and (zipWith primop_arg_ok arg_tys args)  -- Check the arguments
 
-      _other -> isUnliftedType (idType fun)          -- c.f. the Var case of exprIsHNF
-             || idArity fun > n_val_args             -- Partial apps
+      _  -- Unlifted types, probably with args = []
+         -- c.f. the Var case of exprIsHNF
+         | isUnliftedType (idType fun) -> True
+
+         -- Partial applications
+         | idArity fun > n_val_args -> True
+
+         -- Functions that terminate fast without raising exceptions etc
+         -- See #20143
+         | fun `hasKey` unsafeEqualityProofIdKey -> True
+
+         | otherwise -> False
              -- NB: even in the nullary case, do /not/ check
              --     for evaluated-ness of the fun;
              --     see Note [exprOkForSpeculation and evaluated variables]
-             where
-               n_val_args = valArgCount args
+         where
   where
+    n_val_args   = valArgCount args
     (arg_tys, _) = splitPiTys (idType fun)
 
     primop_arg_ok :: TyBinder -> CoreExpr -> Bool
@@ -2656,6 +2666,6 @@ isUnsafeEqualityProof :: CoreExpr -> Bool
 -- Note [Implementing unsafeCoerce] in base:Unsafe.Coerce
 isUnsafeEqualityProof e
   | Var v `App` Type _ `App` Type _ `App` Type _ <- e
-  = idName v == unsafeEqualityProofName
+  = v `hasKey` unsafeEqualityProofIdKey
   | otherwise
   = False
