@@ -9,7 +9,7 @@
 
 #if defined(PROFILING)
 
-#include "PosixSource.h"
+#include "rts/PosixSource.h"
 #include "Rts.h"
 
 #include "RetainerProfile.h"
@@ -49,7 +49,7 @@ information about the retainers is still applicable.
 
 /*
   Note: what to change in order to plug-in a new retainer profiling scheme?
-    (1) type retainer in ../includes/StgRetainerProf.h
+    (1) type retainer in include/StgRetainerProf.h
     (2) retainer function R(), i.e., getRetainerFrom()
     (3) the two hashing functions, hashKeySingleton() and hashKeyAddElement(),
         in RetainerSet.h, if needed.
