@@ -1058,7 +1058,11 @@ genModDetails :: HscEnv -> ModIface -> IO ModDetails
 genModDetails hsc_env old_iface
   = do
     new_details <- {-# SCC "tcRnIface" #-}
-                   initIfaceCheck (text "gen_mod") hsc_env (typecheckIface old_iface)
+                   -- MP: TODO this should be initIfaceCheck but without
+                   -- the current module in old_iface because it has the
+                   -- effect of globalising DFunIds, which fails if the
+                   -- current module is in the hsc_type_env var
+                   initIfaceLoad (text "gen_mod") hsc_env (typecheckIface old_iface)
     dumpIfaceStats hsc_env
     return new_details
 
