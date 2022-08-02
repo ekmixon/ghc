@@ -63,7 +63,7 @@ NoteNamespace = NewType("NoteNamespace", str)
 LocalNamespace = NoteNamespace("perf")
 
 # The git notes namespace for ci results.
-CiNamespace = NoteNamespace("ci/" + LocalNamespace)
+CiNamespace = NoteNamespace(f"ci/{LocalNamespace}")
 
 
 # The metrics (a.k.a stats) are named tuples, PerfStat, in this form:
@@ -144,7 +144,11 @@ def get_perf_stats(commit: Union[GitRef, GitHash]=GitRef('HEAD'),
                    namespace: NoteNamespace = LocalNamespace
                    ) -> List[PerfStat]:
     try:
-        log = subprocess.check_output(['git', 'notes', '--ref=' + namespace, 'show', commit], stderr=subprocess.STDOUT).decode('utf-8')
+        log = subprocess.check_output(
+            ['git', 'notes', f'--ref={namespace}', 'show', commit],
+            stderr=subprocess.STDOUT,
+        ).decode('utf-8')
+
     except subprocess.CalledProcessError:
         return []
 
@@ -187,7 +191,7 @@ def get_allowed_perf_changes(commit: Union[GitRef, GitHash]=GitRef('HEAD')
                              ) -> Dict[TestName, List[AllowedPerfChange]]:
     global _get_allowed_perf_changes_cache
     chash = commit_hash(commit)
-    if not chash in _get_allowed_perf_changes_cache:
+    if chash not in _get_allowed_perf_changes_cache:
         _get_allowed_perf_changes_cache[chash] \
             = parse_allowed_perf_changes(get_commit_message(chash))
     return _get_allowed_perf_changes_cache[chash]
@@ -198,7 +202,7 @@ _get_commit_message = {} # type: Dict[GitHash, str]
 def get_commit_message(commit: Union[GitHash, GitRef]=GitRef('HEAD')) -> str:
     global _get_commit_message
     commit = commit_hash(commit)
-    if not commit in _get_commit_message:
+    if commit not in _get_commit_message:
         _get_commit_message[commit] = subprocess.check_output(\
             ['git', '--no-pager', 'log', '-n1', '--format=%B', commit]).decode()
     return _get_commit_message[commit]
@@ -209,7 +213,7 @@ def parse_allowed_perf_changes(commitMsg: str
     s = r"(?:\s*\n?\s+)"                                    # Space, possible new line with an indent.
     qstr = r"(?:'(?:[^'\\]|\\.)*')"                         # Quoted string.
     qstrCap = r"(?:'((?:[^'\\]|\\.)*)')"                    # Quoted string. Captures the string without the quotes.
-    innerQstrList = r"(?:"+qstr+r"(?:"+s+r"?,"+s+r"?"+qstr+r")*)?"     # Inside of a list of strings.gs.s..
+    innerQstrList = f"(?:{qstr}(?:{s}?,{s}?{qstr})*)?"
     qstrList = r"(?:\["+s+r"?"+innerQstrList+s+r"?\])"      # A list of strings (using box brackets)..
 
     exp = (r"^\s*Metric"
@@ -273,11 +277,11 @@ def allow_changes_string(changes: List[Tuple[MetricChange, PerfStat]]
 
     # Decreasing group.
     if groupDec:
-        msgs.append('Metric Decrease:' + nltab + nltab.join(sorted(groupDec)))
+        msgs.append(f'Metric Decrease:{nltab}{nltab.join(sorted(groupDec))}')
 
     # Increasing group.
     if groupInc:
-        msgs.append('Metric Increase:' + nltab + nltab.join(sorted(groupInc)))
+        msgs.append(f'Metric Increase:{nltab}{nltab.join(sorted(groupInc))}')
 
     # Mixed group.
     if groupMix:
@@ -295,7 +299,15 @@ def allow_changes_string(changes: List[Tuple[MetricChange, PerfStat]]
             metric_to_tests = dir_to_metric_to_tests[change_dir]
             for metric in sorted(metric_to_tests.keys()):
                 tests = sorted(metric_to_tests[metric])
-                msgs.append('Metric ' + change_dir.value + ' \'' + metric + '\':' + nltab + nltab.join(tests))
+                msgs.append(
+                    f'Metric {change_dir.value}'
+                    + ' \''
+                    + metric
+                    + '\':'
+                    + nltab
+                    + nltab.join(tests)
+                )
+
 
     return '\n\n'.join(msgs)
 
@@ -317,17 +329,28 @@ def append_perf_stat(stats: List[PerfStat],
                      max_tries: int=5
                      ) -> bool:
     # Append to git note
-    print('Appending ' + str(len(stats)) + ' stats to git notes.')
+    print(f'Appending {len(stats)} stats to git notes.')
     stats_str = format_perf_stat(stats)
     def try_append():
-            try:
-                return subprocess.check_output(['git', 'notes', '--ref=' + namespace, 'append', commit, '-m', stats_str])
-            except subprocess.CalledProcessError:
-                return b'Git - fatal'
+        try:
+            return subprocess.check_output(
+                [
+                    'git',
+                    'notes',
+                    f'--ref={namespace}',
+                    'append',
+                    commit,
+                    '-m',
+                    stats_str,
+                ]
+            )
+
+        except subprocess.CalledProcessError:
+            return b'Git - fatal'
 
     tries = 0
     while tries < max_tries:
-        if not b'Git - fatal' in try_append():
+        if b'Git - fatal' not in try_append():
             return True
         tries += 1
         time.sleep(1)
@@ -356,14 +379,14 @@ def best_fit_ci_test_env() -> Optional[TestEnv]:
         arch = "x86_64" if isArch64 else "i386"
 
         if platform.startswith("linux"):
-            test_env = TestEnv(arch + "-linux-deb9")  # type: Optional[TestEnv]
+            test_env = TestEnv(f"{arch}-linux-deb9")
         elif platform.startswith("win32"):
             # There are no windows CI test results.
             test_env = None
         elif isArch64 and platform.startswith("darwin"):
-            test_env = TestEnv(arch + "-darwin")
+            test_env = TestEnv(f"{arch}-darwin")
         elif isArch64 and platform.startswith("freebsd"):
-            test_env = TestEnv(arch + "-freebsd")
+            test_env = TestEnv(f"{arch}-freebsd")
         else:
             test_env = None
 
@@ -378,7 +401,7 @@ _baseline_depth_commit_log = {} # type: Dict[GitHash, List[GitHash]]
 def baseline_commit_log(commit: Union[GitHash,GitRef]) -> List[GitHash]:
     global _baseline_depth_commit_log
     chash = commit_hash(commit)
-    if not commit in _baseline_depth_commit_log:
+    if commit not in _baseline_depth_commit_log:
         _baseline_depth_commit_log[chash] = commit_log(chash, BaselineSearchDepth)
 
     return _baseline_depth_commit_log[chash]
@@ -387,7 +410,7 @@ def baseline_commit_log(commit: Union[GitHash,GitRef]) -> List[GitHash]:
 # including the input commit. The output commits are all commit hashes.
 # str -> [str]
 def commit_log(commitOrRange, n=None):
-    nArgs = ['-n' + str(n)] if n != None else []
+    nArgs = [f'-n{str(n)}'] if n != None else []
     output = subprocess.check_output(['git', 'log', '--format=%H'] + nArgs + [commitOrRange]).decode()
     hashes = list(filter(is_commit_hash, output.split('\n')))
 
@@ -397,7 +420,7 @@ def commit_log(commitOrRange, n=None):
     # can do for now is improve logging.
     actualN = len(hashes)
     if n != None and actualN != n:
-        print("Expected " + str(n) + " hashes, but git gave " + str(actualN) + ":\n" + output)
+        print(f"Expected {str(n)} hashes, but git gave {actualN}" + ":\n" + output)
     return hashes
 
 # Cache of baseline values. This is a dict of dicts indexed on:
@@ -482,9 +505,7 @@ def get_commit_metric_value_str_or_none(gitNoteRef,
                                         way: WayName
                                         ) -> Optional[str]:
     result = get_commit_metric(gitNoteRef, commit, test_env, name, metric, way)
-    if result is None:
-        return None
-    return str(result.value)
+    return None if result is None else str(result.value)
 
 # gets the average commit metric from git notes.
 # gitNoteRef: git notes ref space e.g. "perf" or "ci/perf"
@@ -526,14 +547,16 @@ def get_commit_metric(gitNoteRef,
         currentValues.append(float(perfStat.value))
 
     # Calculate and baseline (average of values) by cacheKeyB.
-    baseline_by_cache_key_b = {}
-    for currentCacheKey, currentValues in values_by_cache_key_b.items():
-        baseline_by_cache_key_b[currentCacheKey] = PerfStat( \
-                currentCacheKey[0],
-                currentCacheKey[1],
-                currentCacheKey[3],
-                currentCacheKey[2],
-                sum(currentValues) / len(currentValues))
+    baseline_by_cache_key_b = {
+        currentCacheKey: PerfStat(
+            currentCacheKey[0],
+            currentCacheKey[1],
+            currentCacheKey[3],
+            currentCacheKey[2],
+            sum(currentValues) / len(currentValues),
+        )
+        for currentCacheKey, currentValues in values_by_cache_key_b.items()
+    }
 
     # Save baselines to the cache.
     _commit_metric_cache[cacheKeyA] = baseline_by_cache_key_b
@@ -553,7 +576,7 @@ def check_stats_change(actual: PerfStat,
                        force_print = False
                        ) -> Tuple[MetricChange, Any]:
     expected_val = baseline.perfStat.value
-    full_name = actual.test + ' (' + actual.way + ')'
+    full_name = f'{actual.test} ({actual.way})'
 
     lowerBound = trunc(           int(expected_val) * ((100 - float(tolerance_dev))/100))
     upperBound = trunc(0.5 + ceil(int(expected_val) * ((100 + float(tolerance_dev))/100)))
@@ -568,25 +591,28 @@ def check_stats_change(actual: PerfStat,
         change = MetricChange.Increase
 
     # Is the change allowed?
-    allowed_change_directions =  [MetricChange.NoChange] + [ allow_stmt.direction
-            for allow_stmt in allowed_perf_changes.get(actual.test, [])
+    allowed_change_directions = [MetricChange.NoChange] + [
+        allow_stmt.direction
+        for allow_stmt in allowed_perf_changes.get(actual.test, [])
+        if not allow_stmt.metrics or actual.metric in allow_stmt.metrics
+        if 'way' not in allow_stmt.opts.keys()
+        or actual.way == allow_stmt.opts['way']
+        if 'test_env' not in allow_stmt.opts.keys()
+        or actual.test_env == allow_stmt.opts['test_env']
+    ]
 
-            # List of metrics are not specified or the metric is in the list of metrics.
-            if not allow_stmt.metrics or actual.metric in allow_stmt.metrics
-
-            # way/test are not specified, or match the actual way/test.
-            if ((not 'way'      in allow_stmt.opts.keys()) or actual.way      == allow_stmt.opts['way'])
-            if ((not 'test_env' in allow_stmt.opts.keys()) or actual.test_env == allow_stmt.opts['test_env'])
-        ]
     change_allowed = change in allowed_change_directions
 
     # Print errors and create pass/fail object.
     result = passed()
     if not change_allowed:
-        error = str(change) + ' from ' + baseline.perfStat.test_env + \
-                ' baseline @ %s' % baseline.commit
-        print(actual.metric, error + ':')
-        result = failBecause('stat ' + error, tag='stat')
+        error = (
+            f'{str(change)} from {baseline.perfStat.test_env}'
+            + f' baseline @ {baseline.commit}'
+        )
+
+        print(actual.metric, f'{error}:')
+        result = failBecause(f'stat {error}', tag='stat')
 
     if not change_allowed or force_print:
         length = max(len(str(x)) for x in [expected_val, lowerBound, upperBound, actual.value])
@@ -594,20 +620,25 @@ def check_stats_change(actual: PerfStat,
         def display(descr, val, extra):
             print(descr, str(val).rjust(length), extra)
 
-        display('    Expected    ' + full_name + ' ' + actual.metric + ':', expected_val, '+/-' + str(tolerance_dev) + '%')
-        display('    Lower bound ' + full_name + ' ' + actual.metric + ':', lowerBound, '')
-        display('    Upper bound ' + full_name + ' ' + actual.metric + ':', upperBound, '')
-        display('    Actual      ' + full_name + ' ' + actual.metric + ':', actual.value, '')
+        display(
+            f'    Expected    {full_name} {actual.metric}:',
+            expected_val,
+            f'+/-{str(tolerance_dev)}%',
+        )
+
+        display(f'    Lower bound {full_name} {actual.metric}:', lowerBound, '')
+        display(f'    Upper bound {full_name} {actual.metric}:', upperBound, '')
+        display(f'    Actual      {full_name} {actual.metric}:', actual.value, '')
         if actual.value != expected_val:
-            display('    Deviation   ' + full_name + ' ' + actual.metric + ':', actual_dev, '%')
+            display(f'    Deviation   {full_name} {actual.metric}:', actual_dev, '%')
 
     return (change, result)
 
 # Generate a css color (rgb) string based off of the hash of the input.
 def hash_rgb_str(x) -> str:
     res = 10000.0
-    rgb = colorsys.hsv_to_rgb((abs(int(hash(x))) % res)/res, 1.0, 0.9)
-    return "rgb(" + str(int(rgb[0] * 255)) + ", " + str(int(rgb[1] * 255)) + ", " + str(int(rgb[2] * 255)) + ")"
+    rgb = colorsys.hsv_to_rgb(abs(hash(x)) % res / res, 1.0, 0.9)
+    return f"rgb({int(rgb[0] * 255)}, {int(rgb[1] * 255)}, {int(rgb[2] * 255)})"
 
 def main() -> None:
     parser = argparse.ArgumentParser()

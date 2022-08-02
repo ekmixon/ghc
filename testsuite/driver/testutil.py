@@ -57,7 +57,7 @@ def getStdout(cmd_and_args: List[str]):
     (stdout, stderr) = p.communicate()
     r = p.wait()
     if r != 0:
-        raise Exception("Command failed: " + str(cmd_and_args))
+        raise Exception(f"Command failed: {cmd_and_args}")
     if stderr:
         raise Exception("stderr from command: %s\nStdOut(%s):\n%s\n%s\nOutput(%s):\n%s\n%s\n" % (cmd_and_args,str(len(stdout)), stdout, stdout.decode('utf-8'), str(len(stderr)), stderr, stderr.decode('utf-8')))
     return stdout.decode('utf-8')
@@ -104,7 +104,7 @@ def symlinks_work() -> bool:
                 os.symlink(tmp.name, '__symlink-test')
                 works = True
             except OSError as e:
-                print('Saw {} during symlink test; assuming symlinks do not work.'.format(e))
+                print(f'Saw {e} during symlink test; assuming symlinks do not work.')
             finally:
                 try:
                     os.unlink('__symlink-test')
@@ -159,8 +159,11 @@ def memoize(f):
 # Print the matrix data in a tabular format.
 def print_table(header_rows: List[List[str]], data_rows: List[List[str]], padding=2) -> None:
     # Calculate column widths then print each row.
-    colWidths = [(0 if idx == 0 else padding) + max([len(cell) for cell in col])
-                 for (idx, col) in enumerate(zip(*(header_rows + data_rows)))]
+    colWidths = [
+        (0 if idx == 0 else padding) + max(len(cell) for cell in col)
+        for (idx, col) in enumerate(zip(*(header_rows + data_rows)))
+    ]
+
     col_fmts = ['{:>' + str(w) + '}' for w in colWidths]
 
     def printCols(cols):

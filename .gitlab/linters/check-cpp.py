@@ -25,15 +25,20 @@ for l in linters:
     # Need do document rules!
     l.add_path_filter(lambda path: path != Path('docs', 'coding-style.html'))
     # Don't lint vendored code
-    l.add_path_filter(lambda path: not path.name == 'config.guess')
+    l.add_path_filter(lambda path: path.name != 'config.guess')
     # Don't lint font files
-    l.add_path_filter(lambda path: not path.parent == Path('docs','users_guide',
-        'rtd-theme', 'static', 'fonts'))
+    l.add_path_filter(
+        lambda path: path.parent
+        != Path('docs', 'users_guide', 'rtd-theme', 'static', 'fonts')
+    )
+
     # Don't lint image files
-    l.add_path_filter(lambda path: not path.parent == Path('docs','users_guide',
-        'images'))
+    l.add_path_filter(
+        lambda path: path.parent != Path('docs', 'users_guide', 'images')
+    )
+
     # Don't lint core spec
-    l.add_path_filter(lambda path: not path.name == 'core-spec.pdf')
+    l.add_path_filter(lambda path: path.name != 'core-spec.pdf')
 
 if __name__ == '__main__':
     run_linters(linters)

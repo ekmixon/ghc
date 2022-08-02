@@ -159,9 +159,7 @@ from docutils import nodes
 def parse_ghci_cmd(env, sig, signode):
     parts = sig.split(';')
     name = parts[0]
-    args = ''
-    if len(parts) > 1:
-        args = parts[1]
+    args = parts[1] if len(parts) > 1 else ''
     # Bold name
     signode += addnodes.desc_name(name, name)
     # Smaller args
@@ -178,11 +176,9 @@ def parse_pragma(env, sig, signode):
             idx_parts.append(part)
         else:
             break
-    idx = '-'.join(idx_parts)
-
     name = '{-# ' + sig + ' #-}'
     signode += addnodes.desc_name(name, name)
-    return idx
+    return '-'.join(idx_parts)
 
 def parse_flag(env, sig, signode):
 
@@ -190,10 +186,7 @@ def parse_flag(env, sig, signode):
     import re
     parts = re.split('( |=|\\[)', sig, 1)
     flag = parts[0]
-    args = ''
-    if len(parts) > 1:
-        args = ''.join(parts[1:])
-
+    args = ''.join(parts[1:]) if len(parts) > 1 else ''
     # Bold printed name
     signode += addnodes.desc_name(flag, flag)
     # Smaller arguments
@@ -210,25 +203,26 @@ def haddock_role(lib):
     """
 
     def get_relative_uri(topdir, current_doc, module, anchor):
-      lib_version = ghc_config.lib_versions[lib]
-      libs_base_uri = ghc_config.libs_base_uri
+        lib_version = ghc_config.lib_versions[lib]
+        libs_base_uri = ghc_config.libs_base_uri
 
-      # We want to find the relative uri to the Haddocks for relative links
-      # from users guide to haddocks. The inputs are:
-      #
-      # - The users guide lives under 'topdir': //docs/users_guide
-      # - The current doc file is 'current_doc': //docs/users_guide/exts/template_haskell.rst
-      #   (The html output will be //docs/users_guide/exts/template_haskell.html)
-      # - The haddocks live under 'libs_base_uri' (relative to 'topdir'): ../libraries
+        # We want to find the relative uri to the Haddocks for relative links
+        # from users guide to haddocks. The inputs are:
+        #
+        # - The users guide lives under 'topdir': //docs/users_guide
+        # - The current doc file is 'current_doc': //docs/users_guide/exts/template_haskell.rst
+        #   (The html output will be //docs/users_guide/exts/template_haskell.html)
+        # - The haddocks live under 'libs_base_uri' (relative to 'topdir'): ../libraries
 
-      # for the template_haskell.rst example this will be '..'
-      current_doc_to_topdir = os.path.relpath(topdir, os.path.dirname(current_doc))
+        # for the template_haskell.rst example this will be '..'
+        current_doc_to_topdir = os.path.relpath(topdir, os.path.dirname(current_doc))
 
-      relative_path = '%s/%s/%s-%s' % (current_doc_to_topdir, libs_base_uri, lib, lib_version)
+        relative_path = f'{current_doc_to_topdir}/{libs_base_uri}/{lib}-{lib_version}'
 
-      uri = '%s/%s.html%s' % (relative_path, module, anchor)
+        uri = f'{relative_path}/{module}.html{anchor}'
 
-      return uri
+        return uri
+
 
 
     def role(name, rawtext, text, lineno, inliner, options={}, content=[]):
@@ -239,7 +233,7 @@ def haddock_role(lib):
             if thing != '':
                 # reference to type or identifier
                 tag = 't' if thing[0].isupper() else 'v'
-                anchor = '#%s:%s' % (tag, thing)
+                anchor = f'#{tag}:{thing}'
                 link_text = text
             else:
                 # reference to module

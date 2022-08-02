@@ -22,9 +22,13 @@ def junit(t: TestRun) -> ET.ElementTree:
                             ('fragile failure', t.fragile_failures),
                             ('fragile pass', t.fragile_passes)]:
         for tr in group:
-            testcase = ET.SubElement(testsuite, 'testcase',
-                                     classname = tr.way,
-                                     name = '%s(%s)' % (tr.testname, tr.way))
+            testcase = ET.SubElement(
+                testsuite,
+                'testcase',
+                classname=tr.way,
+                name=f'{tr.testname}({tr.way})',
+            )
+
             message = [] # type: List[str]
             if tr.stdout:
                 message += ['', 'stdout:', '==========', tr.stdout]
@@ -37,17 +41,25 @@ def junit(t: TestRun) -> ET.ElementTree:
             result.text = '\n'.join(message)
 
     for tr in t.framework_failures:
-        testcase = ET.SubElement(testsuite, 'testcase',
-                                 classname = tr.way,
-                                 name = '%s(%s)' % (tr.testname, tr.way))
+        testcase = ET.SubElement(
+            testsuite,
+            'testcase',
+            classname=tr.way,
+            name=f'{tr.testname}({tr.way})',
+        )
+
         result = ET.SubElement(testcase, 'error',
                                type = "framework failure",
                                message = tr.reason)
 
     for tr in t.expected_passes:
-        testcase = ET.SubElement(testsuite, 'testcase',
-                                 classname = tr.way,
-                                 name = '%s(%s)' % (tr.testname, tr.way))
+        testcase = ET.SubElement(
+            testsuite,
+            'testcase',
+            classname=tr.way,
+            name=f'{tr.testname}({tr.way})',
+        )
+
 
     return ET.ElementTree(testsuites)
 

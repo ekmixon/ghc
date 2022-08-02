@@ -12,13 +12,13 @@ def read_cabal_file(pkg_path):
     if pkg_name is not None:
         pkg_name = pkg_name.group(1)
     else:
-        raise RuntimeError("Failed to parse `Name:` field from %s" % pkg_path)
+        raise RuntimeError(f"Failed to parse `Name:` field from {pkg_path}")
 
     pkg_version = re.search(r'^[vV]ersion\s*:\s*(\d+(\.\d+)*)', cabal_file, re.MULTILINE)
     if pkg_version is not None:
         pkg_version = pkg_version.group(1)
     else:
-        raise RuntimeError("Failed to parse `Version:` field from %s" % pkg_path)
+        raise RuntimeError(f"Failed to parse `Version:` field from {pkg_path}")
 
     return (pkg_name, pkg_version)
 
@@ -32,8 +32,7 @@ class PackageListDirective(Directive):
         for line in self.content:
             (pkg_path, _, reason) = line.partition(':')
             if len(reason) == 0:
-                raise RuntimeError("Missing reason for inclusion of package %s"
-                                   % pkg_path)
+                raise RuntimeError(f"Missing reason for inclusion of package {pkg_path}")
 
             # Parse reason
             from docutils.statemachine import ViewList

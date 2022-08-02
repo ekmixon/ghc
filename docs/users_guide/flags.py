@@ -108,48 +108,50 @@ file_defaults = {
 # Functionality to add a flag to the tables, used by both Flag and LanguageExtension
 class GenericFlag(GenericObject):
       def register_flag(self, names, category, name_string, shortdesc, flag_type, reverse_string):
-        # Create nodes for each cell of the table
-        name_node = nodes.paragraph()
-        shortdesc_node = nodes.paragraph()
-        type_node = nodes.paragraph()
-        reverse_node = nodes.paragraph()
+            # Create nodes for each cell of the table
+            name_node = nodes.paragraph()
+            shortdesc_node = nodes.paragraph()
+            type_node = nodes.paragraph()
+            reverse_node = nodes.paragraph()
 
-        assert flag_type in ('dynamic', 'mode'), ('Unknown flag type for %s: %s' %
-                                                     (name_string, flag_type))
+            assert flag_type in (
+                'dynamic',
+                'mode',
+            ), f'Unknown flag type for {name_string}: {flag_type}'
 
-        # Nodes expect an internal ViewList type for the content,
-        # we are just spoofing it here
-        from docutils.statemachine import ViewList
-        name_vl      = ViewList(initlist=[name_string],
-                                source=self.env.docname, parent=[])
-        shortdesc_vl = ViewList(initlist=[shortdesc],
-                                source=self.env.docname, parent=[])
-        type_vl      = ViewList(initlist=[flag_type],
-                                source=self.env.docname, parent=[])
-        reverse_vl   = ViewList(initlist=[reverse_string],
-                                source=self.env.docname, parent=[])
-
-
-        # Parse the content into the nodes
-        self.state.nested_parse(name_vl, 0, name_node)
-        self.state.nested_parse(shortdesc_vl, 0, shortdesc_node)
-        self.state.nested_parse(type_vl, 0, type_node)
-        self.state.nested_parse(reverse_vl, 0, reverse_node)
+            # Nodes expect an internal ViewList type for the content,
+            # we are just spoofing it here
+            from docutils.statemachine import ViewList
+            name_vl      = ViewList(initlist=[name_string],
+                                    source=self.env.docname, parent=[])
+            shortdesc_vl = ViewList(initlist=[shortdesc],
+                                    source=self.env.docname, parent=[])
+            type_vl      = ViewList(initlist=[flag_type],
+                                    source=self.env.docname, parent=[])
+            reverse_vl   = ViewList(initlist=[reverse_string],
+                                    source=self.env.docname, parent=[])
 
 
-        # The parsing adds extra layers that we don't need
-        name_node = name_node[0]
-        shortdesc_node = shortdesc_node[0]
+            # Parse the content into the nodes
+            self.state.nested_parse(name_vl, 0, name_node)
+            self.state.nested_parse(shortdesc_vl, 0, shortdesc_node)
+            self.state.nested_parse(type_vl, 0, type_node)
+            self.state.nested_parse(reverse_vl, 0, reverse_node)
 
-        # Append this flag to the environment, initializing if necessary
-        if not hasattr(self.env, 'all_flags'):
-            self.env.all_flags = []
-        self.env.all_flags.append({
-            'names': names,
-            'docname': self.env.docname,
-            'category': category,
-            'cells': [name_node, shortdesc_node, type_node, reverse_node],
-        })
+
+            # The parsing adds extra layers that we don't need
+            name_node = name_node[0]
+            shortdesc_node = shortdesc_node[0]
+
+            # Append this flag to the environment, initializing if necessary
+            if not hasattr(self.env, 'all_flags'):
+                self.env.all_flags = []
+            self.env.all_flags.append({
+                'names': names,
+                'docname': self.env.docname,
+                'category': category,
+                'cells': [name_node, shortdesc_node, type_node, reverse_node],
+            })
 
 # This class inherits from Sphinx's internal GenericObject, which drives
 # the add_object_type() utility function. We want to keep that tooling,
@@ -194,50 +196,52 @@ class Flag(GenericFlag):
     # to append metadata about this flag into the environment
     def after_content(self):
 
-        # If noindex, then do not include this flag in the table
-        if 'noindex' in self.options:
-            return
+          # If noindex, then do not include this flag in the table
+          if 'noindex' in self.options:
+              return
 
-        # Validity checking
-        if 'shortdesc' not in self.options:
-            raise SphinxError('ghc-flag (%s) directive missing :shortdesc: key' % self.names)
-        if 'type' not in self.options:
-            raise SphinxError('ghc-flag (%s) directive missing :type: key' % self.names)
+              # Validity checking
+          if 'shortdesc' not in self.options:
+                raise SphinxError(f'ghc-flag ({self.names}) directive missing :shortdesc: key')
+          if 'type' not in self.options:
+                raise SphinxError(f'ghc-flag ({self.names}) directive missing :type: key')
 
-        # Set the flag category (default: misc)
-        self.category = 'misc'
-        if not 'category' in self.options or self.options['category'] == '':
-            if self.env.docname in file_defaults:
-                self.category = file_defaults[self.env.docname]
-        else:
-            self.category = self.options['category']
+          # Set the flag category (default: misc)
+          self.category = 'misc'
+          if 'category' not in self.options or self.options['category'] == '':
+                if self.env.docname in file_defaults:
+                    self.category = file_defaults[self.env.docname]
+          else:
+                self.category = self.options['category']
 
-        # Manually create references
-        name_string = ", ".join([':ghc-flag:`'+n+'`' for n in self.names])
-        reverse_string = ''
-        reverse = self.options.get('reverse')
-        if reverse is not None and reverse != '':
-            reverse_string = ':ghc-flag:`' + reverse + '`'
-            self.names += [reverse]
+              # Manually create references
+          name_string = ", ".join([f':ghc-flag:`{n}`' for n in self.names])
+          reverse_string = ''
+          reverse = self.options.get('reverse')
+          if reverse is not None and reverse != '':
+                reverse_string = f':ghc-flag:`{reverse}`'
+                self.names += [reverse]
 
-        self.register_flag(
-            self.names,
-            self.category,
-            name_string,
-            self.options['shortdesc'],
-            self.options['type'],
-            reverse_string)
+          self.register_flag(
+              self.names,
+              self.category,
+              name_string,
+              self.options['shortdesc'],
+              self.options['type'],
+              reverse_string)
 
     # Add additional targets
     def add_target_and_index(self, name, sig, signode):
 
-        GenericFlag.add_target_and_index(self, name, sig, signode)
+          GenericFlag.add_target_and_index(self, name, sig, signode)
 
-        reverse = self.options.get('reverse')
-        if reverse is not None and reverse != '':
-            # Make this also addressable via the reverse flag
-            self.env.domaindata['std']['objects']['ghc-flag', reverse] = \
-                self.env.docname, 'ghc-flag-%s' % name
+          reverse = self.options.get('reverse')
+          if reverse is not None and reverse != '':
+                        # Make this also addressable via the reverse flag
+                self.env.domaindata['std']['objects']['ghc-flag', reverse] = (
+                    self.env.docname,
+                    f'ghc-flag-{name}',
+                )
 
 # This class inherits from Sphinx's internal GenericObject, which drives
 # the add_object_type() utility function. We want to keep that tooling,
@@ -256,96 +260,99 @@ class LanguageExtension(GenericFlag):
     # Invert the flag
     @staticmethod
     def _noname(name):
-        # We check isupper() so that NondecreasingIndentation
-        # is not counted as "No-ndecreasingIndentation"
-        if name[:2] == "No" and name[2].isupper():
-          return name[2:]
-        else:
-          return "No%s" % name
+              # We check isupper() so that NondecreasingIndentation
+              # is not counted as "No-ndecreasingIndentation"
+          return name[2:] if name[:2] == "No" and name[2].isupper() else f"No{name}"
 
     @staticmethod
     def _onname(name):
-        if name[:2] == "No" and name[2].isupper():
-          return name[2:]
-        else:
-          return name
+          return name[2:] if name[:2] == "No" and name[2].isupper() else name
 
     # Add additional targets
     def add_target_and_index(self, name, sig, signode):
 
-        GenericFlag.add_target_and_index(self, name, sig, signode)
+          GenericFlag.add_target_and_index(self, name, sig, signode)
 
-        # Mostly for consistency in URL anchors
-        signode['ids'].append('ghc-flag--X%s'   % name)
-        # So that anchors stay valid even if an extension turns to on-by-default
-        signode['ids'].append('extension-%s'   % self._noname(name))
+              # Mostly for consistency in URL anchors
+          signode['ids'].append(f'ghc-flag--X{name}')
+              # So that anchors stay valid even if an extension turns to on-by-default
+          signode['ids'].append(f'extension-{self._noname(name)}')
 
-        targetname = '%s-%s' % (self.objtype, name)
+          targetname = f'{self.objtype}-{name}'
 
-        # FIXME: This causes some Sphinx versions to fail
-        # Add index entries for the -XFoo flag
-        #self.indexnode['entries'].append(('pair', '-X%s; GHC option' % name,
-        #                                  targetname, '', None))
+              # FIXME: This causes some Sphinx versions to fail
+              # Add index entries for the -XFoo flag
+              #self.indexnode['entries'].append(('pair', '-X%s; GHC option' % name,
+              #                                  targetname, '', None))
 
-        # Make this also addressable using :ghc-flag:-XFoo
-        self.env.domaindata['std']['objects']['ghc-flag', '-X%s' % name] = \
-            self.env.docname, 'extension-%s' % name
-        # Make this also addressable using :extension:-XNoFoo
-        self.env.domaindata['std']['objects']['extension', self._noname(name)] = \
-            self.env.docname, 'extension-%s' % name
+              # Make this also addressable using :ghc-flag:-XFoo
+          self.env.domaindata['std']['objects']['ghc-flag', f'-X{name}'] = (
+              self.env.docname,
+              f'extension-{name}',
+          )
+              # Make this also addressable using :extension:-XNoFoo
+          self.env.domaindata['std']['objects'][
+              'extension', self._noname(name)] = (self.env.docname,
+                                                  f'extension-{name}')
 
 
     # Override the (empty) function that is called at the end of run()
     # to append metadata about this flag into the environment
     def after_content(self):
 
-        # If noindex, then do not include this extension in the table
-        if 'noindex' in self.options:
-            return
+          # If noindex, then do not include this extension in the table
+          if 'noindex' in self.options:
+              return
 
-        # Validity checking
-        if len(self.names) < 1:
-            raise SphinxError('extension needs at least one name')
-        primary_name = self.names[0]
-        if 'shortdesc' not in self.options:
-            raise SphinxError('extension (%s) directive missing :shortdesc: key' % primary_name)
+          # Validity checking
+          if len(self.names) < 1:
+              raise SphinxError('extension needs at least one name')
+          primary_name = self.names[0]
+          if 'shortdesc' not in self.options:
+                raise SphinxError(
+                    f'extension ({primary_name}) directive missing :shortdesc: key'
+                )
 
-        # Register the corresponding flags
-        for name in self.names:
-            self.register_flag(
-                ['-X%s' % name],
-                'language',
-                ':extension:`-X%s <%s>`' % (name, primary_name),
-                self.options['shortdesc'],
-                'dynamic',
-                ':extension:`-X%s <%s>`' % (self._noname(name), primary_name))
+              # Register the corresponding flags
+          for name in self.names:
+                self.register_flag(
+                    [f'-X{name}'],
+                    'language',
+                    f':extension:`-X{name} <{primary_name}>`',
+                    self.options['shortdesc'],
+                    'dynamic',
+                    f':extension:`-X{self._noname(name)} <{primary_name}>`',
+                )
 
-        # Register the extension for the table, under the "on name" (no No...)
-        onname = self._onname(primary_name)
+          # Register the extension for the table, under the "on name" (no No...)
+          onname = self._onname(primary_name)
 
-        name_node = nodes.paragraph()
-        shortdesc_node = nodes.paragraph()
-        # Nodes expect an internal ViewList type for the content,
-        # we are just spoofing it here
-        from docutils.statemachine import ViewList
-        name_vl      = ViewList(initlist=[':extension:`%s`' % onname],
-                                source=self.env.docname, parent=[])
-        shortdesc_vl = ViewList(initlist=[self.options['shortdesc']],
-                                source=self.env.docname, parent=[])
-        # Parse the content into the nodes
-        self.state.nested_parse(name_vl, 0, name_node)
-        self.state.nested_parse(shortdesc_vl, 0, shortdesc_node)
-        # The parsing adds extra layers that we don't need
-        name_node = name_node[0]
-        shortdesc_node = shortdesc_node[0]
+          name_node = nodes.paragraph()
+          shortdesc_node = nodes.paragraph()
+          # Nodes expect an internal ViewList type for the content,
+          # we are just spoofing it here
+          from docutils.statemachine import ViewList
+          name_vl = ViewList(
+              initlist=[f':extension:`{onname}`'],
+              source=self.env.docname,
+              parent=[],
+          )
+          shortdesc_vl = ViewList(initlist=[self.options['shortdesc']],
+                                  source=self.env.docname, parent=[])
+          # Parse the content into the nodes
+          self.state.nested_parse(name_vl, 0, name_node)
+          self.state.nested_parse(shortdesc_vl, 0, shortdesc_node)
+          # The parsing adds extra layers that we don't need
+          name_node = name_node[0]
+          shortdesc_node = shortdesc_node[0]
 
-        if not hasattr(self.env, 'all_extensions'):
-            self.env.all_extensions = []
-        self.env.all_extensions.append({
-            'name':    onname,
-            'docname': self.env.docname,
-            'cells':   [name_node, shortdesc_node]
-        })
+          if not hasattr(self.env, 'all_extensions'):
+              self.env.all_extensions = []
+          self.env.all_extensions.append({
+              'name':    onname,
+              'docname': self.env.docname,
+              'cells':   [name_node, shortdesc_node]
+          })
 
 ### Flag Printing
 
@@ -353,27 +360,24 @@ class LanguageExtension(GenericFlag):
 # Generate a table of flags
 def generate_flag_table(flags, category):
 
-    # Create column headers for table
-    header = []
-    for h in ["Flag", "Description", "Type", "Reverse"]:
-        inline = nodes.inline(text=h)
-        header.append(inline)
+      # Create column headers for table
+      header = []
+      for h in ["Flag", "Description", "Type", "Reverse"]:
+          inline = nodes.inline(text=h)
+          header.append(inline)
 
-    flags_list = [header]
+      flags_list = [header]
 
-    for flag_info in flags:
+      flags_list.extend(flag_info['cells'] for flag_info in flags)
+      # The column width hints only apply to html,
+      # latex widths are set in file (see flags.rst)
+      table = build_table_from_list(flags_list, [28, 34, 10, 28])
 
-        flags_list.append(flag_info['cells'])
+      # Flag tables have lots of content, so we need to set 'longtable'
+      # to allow for pagebreaks. (latex specific)
+      table['classes'].append('longtable')
 
-    # The column width hints only apply to html,
-    # latex widths are set in file (see flags.rst)
-    table = build_table_from_list(flags_list, [28, 34, 10, 28])
-
-    # Flag tables have lots of content, so we need to set 'longtable'
-    # to allow for pagebreaks. (latex specific)
-    table['classes'].append('longtable')
-
-    return table
+      return table
 
 
 # Generate a list of flags and their short descriptions
@@ -431,21 +435,21 @@ class flagprint(nodes.General, nodes.Element):
 
     def __init__(self, output_type='', category='', **kwargs):
 
-        nodes.Element.__init__(self, rawsource='', **kwargs)
+          nodes.Element.__init__(self, rawsource='', **kwargs)
 
-        # Verify options
-        if category not in categories:
-            error = "flagprint: Unknown category: " + category
-            raise ValueError(error)
-        if output_type not in flag_handlers:
-            error = "flagprint: Unknown output type: " + output_type
-            raise ValueError(error)
+              # Verify options
+          if category not in categories:
+                error = f"flagprint: Unknown category: {category}"
+                raise ValueError(error)
+          if output_type not in flag_handlers:
+                error = f"flagprint: Unknown output type: {output_type}"
+                raise ValueError(error)
 
-        # Store the options
-        self.options = {
-            'type': output_type,
-            'category': category
-        }
+          # Store the options
+          self.options = {
+              'type': output_type,
+              'category': category
+          }
 
 
     # The man writer has a copy issue, so we explicitly override it here
@@ -458,29 +462,28 @@ class flagprint(nodes.General, nodes.Element):
 
 
     def generate_output(self, app, fromdocname):
-        env = app.builder.env
+          env = app.builder.env
 
-        # Filter flags before passing to flag_handlers
-        flags = []
+          # Filter flags before passing to flag_handlers
+          flags = []
 
-        for flag_info in sorted(env.all_flags,
+          for flag_info in sorted(env.all_flags,
                 key=lambda fi: fi['names'][0].lower()):
 
-            if not (self.options['category'] == '' or
-                    self.options['category'] == flag_info['category']):
-                continue
+                if self.options['category'] not in ['', flag_info['category']]:
+                      continue
 
-            # Resolve all references as if they were originated from this node.
-            # This fixes the relative uri.
-            for cell in flag_info['cells']:
-                for ref in cell.traverse(addnodes.pending_xref):
-                    ref['refdoc'] = fromdocname
-                env.resolve_references(cell, flag_info['docname'], app.builder)
+                # Resolve all references as if they were originated from this node.
+                # This fixes the relative uri.
+                for cell in flag_info['cells']:
+                    for ref in cell.traverse(addnodes.pending_xref):
+                        ref['refdoc'] = fromdocname
+                    env.resolve_references(cell, flag_info['docname'], app.builder)
 
-            flags.append(flag_info)
+                flags.append(flag_info)
 
-        handler = flag_handlers[self.options['type']]
-        self.replace_self(handler(flags, self.options['category']))
+          handler = flag_handlers[self.options['type']]
+          self.replace_self(handler(flags, self.options['category']))
 
 # A directive to create flagprint nodes
 class FlagPrintDirective(Directive):
@@ -492,14 +495,10 @@ class FlagPrintDirective(Directive):
 
     def run(self):
 
-        # Process options
-        category = ''
-        if 'category' in self.options:
-            category = self.options['category']
-
-        # Create a flagprint node
-        node = flagprint(output_type=self.options['type'], category=category)
-        return [node]
+          category = self.options['category'] if 'category' in self.options else ''
+          # Create a flagprint node
+          node = flagprint(output_type=self.options['type'], category=category)
+          return [node]
 
 ### Extension Printing
 
@@ -507,26 +506,24 @@ class FlagPrintDirective(Directive):
 # Generate a table of flags
 def generate_extension_table(extensions):
 
-    # Create column headers for table
-    header = []
-    for h in ["Extension", "Description"]:
-        inline = nodes.inline(text=h)
-        header.append(inline)
+      # Create column headers for table
+      header = []
+      for h in ["Extension", "Description"]:
+          inline = nodes.inline(text=h)
+          header.append(inline)
 
-    extension_list = [header]
+      extension_list = [header]
 
-    for extension_info in extensions:
-        extension_list.append(extension_info['cells'])
+      extension_list.extend(extension_info['cells'] for extension_info in extensions)
+      # The column width hints only apply to html,
+      # latex widths are set in file (see flags.rst)
+      table = build_table_from_list(extension_list, [28, 72])
 
-    # The column width hints only apply to html,
-    # latex widths are set in file (see flags.rst)
-    table = build_table_from_list(extension_list, [28, 72])
+      # Flag tables have lots of content, so we need to set 'longtable'
+      # to allow for pagebreaks. (latex specific)
+      table['classes'].append('longtable')
 
-    # Flag tables have lots of content, so we need to set 'longtable'
-    # to allow for pagebreaks. (latex specific)
-    table['classes'].append('longtable')
-
-    return table
+      return table
 
 
 # Output dispatch table
@@ -539,17 +536,17 @@ class extensionprint(nodes.General, nodes.Element):
 
     def __init__(self, output_type='', **kwargs):
 
-        nodes.Element.__init__(self, rawsource='', **kwargs)
+          nodes.Element.__init__(self, rawsource='', **kwargs)
 
-        # Verify options
-        if output_type not in extension_handlers:
-            error = "extensionprint: Unknown output type: " + output_type
-            raise ValueError(error)
+              # Verify options
+          if output_type not in extension_handlers:
+                error = f"extensionprint: Unknown output type: {output_type}"
+                raise ValueError(error)
 
-        # Store the options
-        self.options = {
-            'type': output_type,
-        }
+          # Store the options
+          self.options = {
+              'type': output_type,
+          }
 
 
     # The man writer has a copy issue, so we explicitly override it here

@@ -12,7 +12,7 @@ found_tests = set() # type: Set[str]
 fixed_tests = set() # type: Set[str]
 
 def extras(name: str) -> str:
-    return 'extra_files(%s)' % (extra_src_files[name],)
+    return f'extra_files({extra_src_files[name]})'
 
 def list_extras(name: str, col: int) -> str:
     return extras(name) + ',\n' + ' ' * (col + 1)
@@ -20,9 +20,7 @@ def list_extras(name: str, col: int) -> str:
 def find_all_T_files(basedir: bytes) -> List[bytes]:
     result = [] # type: List[bytes]
     for dirpath, dirnames, filenames in os.walk(basedir):
-        for f in filenames:
-            if f.endswith(b'.T'):
-                result.append(os.path.join(dirpath, f))
+        result.extend(os.path.join(dirpath, f) for f in filenames if f.endswith(b'.T'))
     return result
 
 # Delete del bytes from (line, col) and then insert the string ins there.
@@ -55,10 +53,15 @@ class TestVisitor(ast.NodeVisitor):
                             delete=len(setup.id), insert=extras(name)))
                     else:
                         # Make a lit
-                        self.fixups.append(Fixup(
-                            line=setup.lineno, col=setup.col_offset,
-                            delete=0,
-                            insert='[' + list_extras(name, setup.col_offset)))
+                        self.fixups.append(
+                            Fixup(
+                                line=setup.lineno,
+                                col=setup.col_offset,
+                                delete=0,
+                                insert=f'[{list_extras(name, setup.col_offset)}',
+                            )
+                        )
+
                         self.fixups.append(Fixup(
                             line=setup.lineno,
                             col=setup.col_offset + len(setup.id),
@@ -66,12 +69,7 @@ class TestVisitor(ast.NodeVisitor):
                     fixed_tests.add(name)
                 elif isinstance(setup, ast.List):
                     # Insert into list at start
-                    if not setup.elts:
-                        ins = extras(name) # no need for comma, newline
-                        # Don't try to delete the list because someone
-                        # might have written "[   ]" for some reason
-                    else:
-                        ins = list_extras(name, setup.col_offset)
+                    ins = list_extras(name, setup.col_offset) if setup.elts else extras(name)
                     self.fixups.append(Fixup(
                         line=setup.lineno, col=setup.col_offset + 1,
                         delete=0, insert=ins))
@@ -80,7 +78,7 @@ class TestVisitor(ast.NodeVisitor):
                     assert False # we fixed them all manually already
 
 basedir = subprocess.check_output(['git', 'rev-parse', '--show-toplevel'])
-basedir = basedir[0:-1]         # delete trailing newline
+basedir = basedir[:-1]
 print(basedir)
 for f in find_all_T_files(basedir):
     print(f)

@@ -22,7 +22,7 @@ def get_cpu_features():
         if flags is None:
             print('get_cpu_features: failed to find cpu features')
             return {}
-        flags = set(flags.group(0).split())
+        flags = set(flags[0].split())
         if 'pni' in flags:
             flags.add('sse3')
             flags.remove('pni')

@@ -122,7 +122,7 @@ if args.only:
 if args.way:
     for way in args.way:
         if way not in all_ways:
-            print('WARNING: Unknown WAY %s in --way' % way)
+            print(f'WARNING: Unknown WAY {way} in --way')
         else:
             config.cmdline_ways += [way]
             if way in config.other_ways:
@@ -132,7 +132,7 @@ if args.way:
 if args.skipway:
     for way in args.skipway:
         if way not in all_ways:
-            print('WARNING: Unknown WAY %s in --skipway' % way)
+            print(f'WARNING: Unknown WAY {way} in --skipway')
 
     config.other_ways = [w for w in config.other_ways if w not in args.skipway]
     config.run_ways = [w for w in config.run_ways if w not in args.skipway]
@@ -156,11 +156,11 @@ config.only_perf_tests = args.only_perf_tests
 if args.ignore_perf_failures == 'all':
     config.ignore_perf_decreases = True
     config.ignore_perf_increases = True
-elif args.ignore_perf_failures == 'increases':
-    config.ignore_perf_increases = True
 elif args.ignore_perf_failures == 'decreases':
     config.ignore_perf_decreases = True
 
+elif args.ignore_perf_failures == 'increases':
+    config.ignore_perf_increases = True
 if args.test_env:
     config.test_env = args.test_env
 
@@ -184,11 +184,7 @@ if windows:
 if windows:
     import ctypes
     # Windows and mingw* Python provide windll, msys2 python provides cdll.
-    if hasattr(ctypes, 'WinDLL'):
-        mydll = ctypes.WinDLL    # type: ignore
-    else:
-        mydll = ctypes.CDLL
-
+    mydll = ctypes.WinDLL if hasattr(ctypes, 'WinDLL') else ctypes.CDLL
     # This actually leaves the terminal in codepage 65001 (UTF8) even
     # after python terminates. We ought really remember the old codepage
     # and set it back.
@@ -235,9 +231,7 @@ def supports_colors():
                                                   'ANSICON' in os.environ)
     # isatty is not always implemented, #6223.
     is_a_tty = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
-    if not supported_platform or not is_a_tty:
-        return False
-    return True
+    return bool(supported_platform and is_a_tty)
 
 config.supports_colors = supports_colors()
 term_color.enable_color = config.supports_colors
@@ -294,7 +288,7 @@ testopts_local.x = TestOptions()
 if config.timeout == -1:
     config.timeout = int(read_no_crs(config.top / 'timeout' / 'calibrate.out'))
 
-print('Timeout is ' + str(config.timeout))
+print(f'Timeout is {str(config.timeout)}')
 print('Known ways: ' + ', '.join(config.other_ways))
 print('Run ways: ' + ', '.join(config.run_ways))
 print('Compile ways: ' + ', '.join(config.compile_ways))
@@ -357,12 +351,18 @@ def cleanup_and_exit(exitcode):
 
 def tabulate_metrics(metrics: List[PerfMetric]) -> None:
     abbrevLen = get_abbrev_hash_length()
-    hasBaseline = any([x.baseline is not None for x in metrics])
-    baselineCommitSet = set([x.baseline.commit for x in metrics if x.baseline is not None])
+    hasBaseline = any(x.baseline is not None for x in metrics)
+    baselineCommitSet = {
+        x.baseline.commit for x in metrics if x.baseline is not None
+    }
+
     hideBaselineCommit = not hasBaseline or len(baselineCommitSet) == 1
     hideBaselineEnv = not hasBaseline or all(
-        [x.stat.test_env == x.baseline.perfStat.test_env
-         for x in metrics if x.baseline is not None])
+        x.stat.test_env == x.baseline.perfStat.test_env
+        for x in metrics
+        if x.baseline is not None
+    )
+
     def row(cells: Tuple[str, str, str, str, str, str, str, str]) -> List[str]:
         return [x for (idx, x) in enumerate(list(cells)) if
                 (idx != 2 or not hideBaselineCommit) and
@@ -378,6 +378,7 @@ def tabulate_metrics(metrics: List[PerfMetric]) -> None:
         val0 = x.baseline.perfStat.value
         val1 = x.stat.value
         return "{:+2.1f}%".format(100 * (val1 - val0) / val0)
+
     dataRows = [row((
         "{}({})".format(x.stat.test, x.stat.way),
         shorten_metric_name(x.stat.metric),
@@ -408,7 +409,7 @@ def tabulate_metrics(metrics: List[PerfMetric]) -> None:
 # First collect all the tests to be run
 t_files_ok = True
 for file in t_files:
-    if_verbose(3, '====> Scanning %s' % file)
+    if_verbose(3, f'====> Scanning {file}')
     newTestDir(tempdir, os.path.dirname(file))
     try:
         with io.open(file, encoding='utf8') as f:
@@ -417,19 +418,13 @@ for file in t_files:
         exec(src)
     except Exception as e:
         traceback.print_exc()
-        framework_fail(None, None, 'exception: %s' % e)
+        framework_fail(None, None, f'exception: {e}')
         t_files_ok = False
 
 for name in config.only:
     if t_files_ok:
         # See Note [Mutating config.only]
         framework_fail(name, None, 'test not found')
-    else:
-        # Let user fix .T file errors before reporting on unfound tests.
-        # The reason the test can not be found is likely because of those
-        # .T file errors.
-        pass
-
 if config.list_broken:
     print('')
     print('Broken tests:')
@@ -468,7 +463,7 @@ else:
     sys.stdout.flush()
 
     # Dump metrics data.
-    print("\nPerformance Metrics (test environment: {}):\n".format(config.test_env))
+    print(f"\nPerformance Metrics (test environment: {config.test_env}):\n")
     if config.baseline_commit:
         print('Performance baseline: %s\n' % config.baseline_commit)
     if any(t.metrics):
@@ -481,7 +476,7 @@ else:
             groups[m.stat.metric].append(m)
 
         for metric_name, stats in groups.items():
-            heading = 'Metrics: %s' % metric_name
+            heading = f'Metrics: {metric_name}'
             print()
             print(heading)
             print('-' * len(heading))
@@ -497,7 +492,10 @@ else:
         print()
         print(str_warn('Skipping All Performance Tests') + ' `git` exited with non-zero exit code.')
         print(spacing + 'Git is required because performance test results are compared with ancestor git commits\' results (stored with git notes).')
-        print(spacing + 'You can still run the tests without git by specifying an output file with --metrics-file FILE.')
+        print(
+            f'{spacing}You can still run the tests without git by specifying an output file with --metrics-file FILE.'
+        )
+
 
     # Warn of new metrics.
     new_metrics = [metric for (change, metric, baseline) in t.metrics if change == MetricChange.NewMetric]
@@ -523,7 +521,7 @@ else:
         print()
         print(str_warn('Missing Baseline Metrics') + \
                 ' these metrics trivially pass because ' + reason)
-        print(spacing + (' ').join(set([metric.test for metric in new_metrics])))
+        print(spacing + (' ').join({metric.test for metric in new_metrics}))
         if fix != "":
             print()
             print(fix)
@@ -542,7 +540,7 @@ else:
     # Write perf stats if any exist or if a metrics file is specified.
     stats_metrics = [stat for (_, stat, __) in t.metrics] # type: List[PerfStat]
     if hasMetricsFile:
-        print('Appending ' + str(len(stats_metrics)) + ' stats to file: ' + config.metrics_file)
+        print(f'Appending {len(stats_metrics)} stats to file: {config.metrics_file}')
         with open(config.metrics_file, 'a') as f:
             f.write("\n" + Perf.format_perf_stat(stats_metrics))
     elif inside_git_repo() and any(stats_metrics):

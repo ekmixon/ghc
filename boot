@@ -37,7 +37,7 @@ def check_boot_packages():
 
         parts = [part for part in l.split(' ') if part]
         if len(parts) != 4:
-            die("Error: Bad line in packages file: " + l)
+            die(f"Error: Bad line in packages file: {l}")
 
         dir_ = parts[0]
         tag = parts[1]
@@ -49,7 +49,7 @@ def check_boot_packages():
             # but in an lndir tree we avoid making .git directories,
             # so it doesn't exist. We therefore require that every repo
             # has a LICENSE file instead.
-            license_path = os.path.join(EXCEPTIONS.get(dir_+'/', dir_), 'LICENSE')
+            license_path = os.path.join(EXCEPTIONS.get(f'{dir_}/', dir_), 'LICENSE')
             if not os.path.isfile(license_path):
                 die("""\
                     Error: %s doesn't exist
@@ -64,8 +64,11 @@ def boot_pkgs():
         packages_file = os.path.join(package, 'ghc-packages')
         print(package)
         if os.path.isfile(packages_file):
-            for subpkg in open(packages_file, 'r'):
-                library_dirs.append(os.path.join(package, subpkg.strip()))
+            library_dirs.extend(
+                os.path.join(package, subpkg.strip())
+                for subpkg in open(packages_file, 'r')
+            )
+
         elif package in EXCEPTIONS:
             library_dirs.append(EXCEPTIONS[package])
         else:
@@ -82,7 +85,7 @@ def boot_pkgs():
             cabals = glob.glob(os.path.join(package, '*.cabal'))
 
         if len(cabals) > 1:
-            die('Too many .cabal files in %s' % package)
+            die(f'Too many .cabal files in {package}')
         elif len(cabals) == 1:
             cabal = cabals[0]
 
@@ -93,9 +96,9 @@ def boot_pkgs():
 
                 ghc_mk = os.path.join(package, 'ghc.mk')
                 if os.path.exists(ghc_mk):
-                    print('Skipping %s which already exists' % ghc_mk)
+                    print(f'Skipping {ghc_mk} which already exists')
                     continue
-                print('Creating %s' % ghc_mk)
+                print(f'Creating {ghc_mk}')
                 with open(ghc_mk, 'w') as f:
                     f.write(dedent(
                         """\
@@ -131,13 +134,13 @@ def autoreconf():
         ac_local_arg = re.sub(r';', r':', ac_local)
         ac_local_arg = re.sub(r'\\', r'/', ac_local_arg)
         ac_local_arg = re.sub(r'(\w):/', r'/\1/', ac_local_arg)
-        reconf_cmd = 'ACLOCAL_PATH=%s autoreconf' % ac_local_arg
+        reconf_cmd = f'ACLOCAL_PATH={ac_local_arg} autoreconf'
     else:
         reconf_cmd = 'autoreconf'
 
     for dir_ in ['.'] + glob.glob('libraries/*/'):
         if os.path.isfile(os.path.join(dir_, 'configure.ac')):
-            print("Booting %s" % dir_)
+            print(f"Booting {dir_}")
             # Update config.sub in submodules
             if dir_ != '.' and os.path.isfile(os.path.join(dir_, 'config.sub')):
                 shutil.copyfile('config.sub', os.path.join(dir_, 'config.sub'))

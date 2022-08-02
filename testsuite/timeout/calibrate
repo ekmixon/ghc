@@ -22,7 +22,6 @@ spawnl(os.P_WAIT, './TimeMe', 'TimeMe')
 
 xs = getrusage(RUSAGE_CHILDREN);
 x = int(math.ceil(xs[0] + xs[1]))
-if x < 1:
-    x = 1
+x = max(x, 1)
 print (300*x)
 

@@ -13,8 +13,5 @@ class Color(Enum):
     WHITE   = 37
 
 def colored(color: Color, s: str) -> str:
-    if enable_color:
-        return '\033[1m\033[{}m{}\033[0m'.format(color.value, s)
-    else:
-        return s
+    return f'\033[1m\033[{color.value}m{s}\033[0m' if enable_color else s
 

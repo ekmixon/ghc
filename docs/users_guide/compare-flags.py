@@ -6,6 +6,7 @@ Linter to verify that all flags reported by GHC's --show-options mode
 are documented in the user's guide.
 """
 
+
 import sys
 import subprocess
 from typing import Set
@@ -16,8 +17,7 @@ from pathlib import Path
 EXPECTED_UNDOCUMENTED_PATH = \
     Path(__file__).parent / 'expected-undocumented-flags.txt'
 
-EXPECTED_UNDOCUMENTED = \
-    {line for line in EXPECTED_UNDOCUMENTED_PATH.read_text().split()}
+EXPECTED_UNDOCUMENTED = set(EXPECTED_UNDOCUMENTED_PATH.read_text().split())
 
 def expected_undocumented(flag: str) -> bool:
     if flag in EXPECTED_UNDOCUMENTED:
@@ -29,11 +29,7 @@ def expected_undocumented(flag: str) -> bool:
             or flag.startswith('-fno') \
             or flag.startswith('-XNo'):
         return True
-    if flag.startswith('-Wwarn=') \
-            or flag.startswith('-Wno-warn='):
-        return True
-
-    return False
+    return bool(flag.startswith('-Wwarn=') or flag.startswith('-Wno-warn='))
 
 def read_documented_flags(doc_flags) -> Set[str]:
     # Map characters that mark the end of a flag
@@ -79,14 +75,17 @@ def main() -> None:
     undocumented = ghc_flags - doc_flags
     if len(undocumented) > 0:
         error('Found {len_undoc} flags not documented in the users guide:'.format(len_undoc=len(undocumented)), )
-        error('\n'.join('  {}'.format(flag) for flag in sorted(undocumented)))
+        error('\n'.join(f'  {flag}' for flag in sorted(undocumented)))
         error('')
         failed = True
 
     now_documented = EXPECTED_UNDOCUMENTED.intersection(doc_flags)
     if len(now_documented) > 0:
-        error('Found flags that are documented yet listed in {}:'.format(EXPECTED_UNDOCUMENTED_PATH))
-        error('\n'.join('  {}'.format(flag) for flag in sorted(now_documented)))
+        error(
+            f'Found flags that are documented yet listed in {EXPECTED_UNDOCUMENTED_PATH}:'
+        )
+
+        error('\n'.join(f'  {flag}' for flag in sorted(now_documented)))
         error('')
         failed = True
 

@@ -167,9 +167,7 @@ def have_library(lib: str) -> bool:
         cmd = strip_quotes(config.ghc_pkg)
         cmd_line = [cmd, '--no-user-package-db']
 
-        for db in config.test_package_db:
-            cmd_line.append("--package-db="+db)
-
+        cmd_line.extend(f"--package-db={db}" for db in config.test_package_db)
         cmd_line.extend(['describe', lib])
 
         print(cmd_line)
@@ -192,9 +190,9 @@ def _reqlib( name, opts, lib ):
         opts.expect = 'missing-lib'
         opts.skip   = True
     else:
-        opts.extra_hc_opts = opts.extra_hc_opts + ' -package ' + lib + ' '
+        opts.extra_hc_opts = f'{opts.extra_hc_opts} -package {lib} '
         for db in config.test_package_db:
-            opts.extra_hc_opts = opts.extra_hc_opts + ' -package-db=' + db + ' '
+            opts.extra_hc_opts = f'{opts.extra_hc_opts} -package-db={db} '
 
 def req_haddock( name, opts ):
     if not config.haddock:
@@ -269,12 +267,10 @@ def _use_specs( name, opts, specs ):
 
 def _lint_ways(name: TestName, ways: List[WayName]) -> None:
     """ Check that all of the ways in a list are valid. """
-    unknown_ways = [way
-                    for way in get_all_ways()
-                    if way not in get_all_ways()
-                    ]
-    if len(unknown_ways) > 0:
-        framework_fail(name, None, 'Unknown ways: %s' % (unknown_ways,))
+    if unknown_ways := [
+        way for way in get_all_ways() if way not in get_all_ways()
+    ]:
+        framework_fail(name, None, f'Unknown ways: {unknown_ways}')
 
 def expect_fail_for( ways: List[WayName] ):
     def helper( name: TestName, opts ):
@@ -306,7 +302,7 @@ def expect_broken_for( bug: IssueNumber, ways: List[WayName] ):
 
 def record_broken(name: TestName, opts, bug: IssueNumber):
     me = (bug, opts.testdir, name)
-    if not me in brokens:
+    if me not in brokens:
         brokens.append(me)
 
 def _expect_pass(way):
@@ -384,15 +380,7 @@ def _exit_code( name, opts, v ):
     opts.exit_code = v
 
 def signal_exit_code( val: int ):
-    if opsys('solaris2'):
-        return exit_code( val )
-    else:
-        # When application running on Linux receives fatal error
-        # signal, then its exit code is encoded as 128 + signal
-        # value. See http://www.tldp.org/LDP/abs/html/exitcodes.html
-        # I assume that Mac OS X behaves in the same way at least Mac
-        # OS X builder behavior suggests this.
-        return exit_code( val+128 )
+    return exit_code( val ) if opsys('solaris2') else exit_code( val+128 )
 
 # -----
 
@@ -414,7 +402,7 @@ def extra_run_opts( val ):
     return lambda name, opts, v=val: _extra_run_opts(name, opts, v);
 
 def _extra_run_opts( name, opts, v ):
-    opts.extra_run_opts += " " + v
+    opts.extra_run_opts += f" {v}"
 
 # -----
 
@@ -422,7 +410,7 @@ def extra_hc_opts( val ):
     return lambda name, opts, v=val: _extra_hc_opts(name, opts, v);
 
 def _extra_hc_opts( name, opts, v ):
-    opts.extra_hc_opts += " " + v
+    opts.extra_hc_opts += f" {v}"
 
 # -----
 
@@ -471,11 +459,7 @@ def _collect_stats(name: TestName, opts, metrics, deviation, is_compiler_stats_t
 
     # Normalize metrics to a list of strings.
     if isinstance(metrics, str):
-        if metrics == 'all':
-            metrics = testing_metrics()
-        else:
-            metrics = { metrics }
-
+        metrics = testing_metrics() if metrics == 'all' else { metrics }
     opts.is_stats_test = True
     if is_compiler_stats_test:
         opts.is_compiler_stats_test = True
@@ -513,10 +497,7 @@ def _collect_stats(name: TestName, opts, metrics, deviation, is_compiler_stats_t
 def when(b: bool, f):
     # When list_brokens is on, we want to see all expect_broken calls,
     # so we always do f
-    if b or config.list_broken:
-        return f
-    else:
-        return normal
+    return f if b or config.list_broken else normal
 
 def unless(b: bool, f):
     return when(not b, f)
@@ -538,7 +519,7 @@ def fast() -> bool:
 def platform( plat: str ) -> bool:
     return config.platform == plat
 
-KNOWN_OPERATING_SYSTEMS = set([
+KNOWN_OPERATING_SYSTEMS = {
     'mingw32',
     'freebsd',
     'openbsd',
@@ -546,7 +527,7 @@ KNOWN_OPERATING_SYSTEMS = set([
     'linux',
     'darwin',
     'solaris2',
-])
+}
 
 def opsys( os: str ) -> bool:
     assert os in KNOWN_OPERATING_SYSTEMS
@@ -714,7 +695,7 @@ def cmd_prefix( prefix ):
     return lambda name, opts, p=prefix: _cmd_prefix(name, opts, prefix)
 
 def _cmd_prefix( name, opts, prefix ):
-    opts.cmd_wrapper = lambda cmd, p=prefix: p + ' ' + cmd;
+    opts.cmd_wrapper = lambda cmd, p=prefix: f'{p} {cmd}';
 
 # ----
 
@@ -855,8 +836,7 @@ def join_normalisers(*a):
         for el in l:
             if (isinstance(el, collections.Iterable)
                 and not isinstance(el, (bytes, str))):
-                for sub in flatten(el):
-                    yield sub
+                yield from flatten(el)
             else:
                 yield el
 
@@ -970,11 +950,10 @@ if config.use_threads:
 def get_package_cache_timestamp() -> float:
     if config.package_conf_cache_file is None:
         return 0.0
-    else:
-        try:
-            return config.package_conf_cache_file.stat().st_mtime
-        except:
-            return 0.0
+    try:
+        return config.package_conf_cache_file.stat().st_mtime
+    except:
+        return 0.0
 
 do_not_copy = ('.hi', '.o', '.dyn_hi'
               , '.dyn_o', '.out'
@@ -990,15 +969,12 @@ def test_common_work(watcher: testutil.Watcher,
         package_conf_cache_file_start_timestamp = get_package_cache_timestamp()
 
         # All the ways we might run this test
-        if func == compile or func == multimod_compile:
+        if func in [compile, multimod_compile]:
             all_ways = config.compile_ways
         elif func in [compile_and_run, multi_compile_and_run, multimod_compile_and_run]:
             all_ways = config.run_ways
         elif func == ghci_script:
-            if WayName('ghci') in config.run_ways:
-                all_ways = [WayName('ghci')]
-            else:
-                all_ways = []
+            all_ways = [WayName('ghci')] if WayName('ghci') in config.run_ways else []
         elif func in [makefile_test, run_command]:
             # makefile tests aren't necessarily runtime or compile-time
             # specific. Assume we can run them in all ways. See #16042 for what
@@ -1045,14 +1021,23 @@ def test_common_work(watcher: testutil.Watcher,
         # specify all other files that their test depends on (but
         # this seems to be necessary for only about 10% of all
         # tests).
-        files = set(f for f in os.listdir(str(opts.srcdir))
-                       if f.startswith(name) and not f == name and
-                          not f.endswith(testdir_suffix) and
-                          not os.path.splitext(f)[1] in do_not_copy)
+        files = {
+            f
+            for f in os.listdir(str(opts.srcdir))
+            if f.startswith(name)
+            and f != name
+            and not f.endswith(testdir_suffix)
+            and os.path.splitext(f)[1] not in do_not_copy
+        }
+
         for filename in (opts.extra_files + extra_src_files.get(name, [])):
             if filename.startswith('/'):
-                framework_fail(name, None,
-                    'no absolute paths in extra_files please: ' + filename)
+                framework_fail(
+                    name,
+                    None,
+                    f'no absolute paths in extra_files please: {filename}',
+                )
+
 
             elif '*' in filename:
                 # Don't use wildcards in extra_files too much, as
@@ -1085,15 +1070,20 @@ def test_common_work(watcher: testutil.Watcher,
             try:
                 cleanup()
             except Exception as e:
-                framework_fail(name, None, 'Unhandled exception during cleanup: ' + str(e))
+                framework_fail(name, None, f'Unhandled exception during cleanup: {str(e)}')
 
         package_conf_cache_file_end_timestamp = get_package_cache_timestamp();
 
         if package_conf_cache_file_start_timestamp != package_conf_cache_file_end_timestamp:
-            framework_fail(name, None, 'Package cache timestamps do not match: ' + str(package_conf_cache_file_start_timestamp) + ' ' + str(package_conf_cache_file_end_timestamp))
+            framework_fail(
+                name,
+                None,
+                f'Package cache timestamps do not match: {str(package_conf_cache_file_start_timestamp)} {str(package_conf_cache_file_end_timestamp)}',
+            )
+
 
     except Exception as e:
-        framework_fail(name, None, 'Unhandled exception: ' + str(e))
+        framework_fail(name, None, f'Unhandled exception: {str(e)}')
     finally:
         watcher.notify()
 

@@ -13,7 +13,7 @@ try:
 
     def killProcess(pid):
         os.killpg(pid, signal.SIGKILL)
-        for x in range(10):
+        for _ in range(10):
             try:
                 time.sleep(0.3)
                 r = os.waitpid(pid, os.WNOHANG)
